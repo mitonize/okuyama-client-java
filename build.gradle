@@ -1,3 +1,49 @@
-task wrapper(type: Wrapper) {
-	gradleVersion = 1.7
+apply plugin: 'java'
+apply plugin: 'war'
+apply plugin: 'eclipse'
+
+apply from: file('gradle/misc.gradle')
+
+// Basic source profile
+sourceCompatibility = targetCompatibility = 1.7
+tasks.withType(AbstractCompile) each {
+	it.options.encoding = 'UTF-8'
 }
+
+repositories {
+	mavenCentral()
+	mavenRepo(url: 'http://repository.jboss.org/nexus/content/groups/public')
+}
+
+dependencies {
+	def resteasy = '3.0-beta-4'
+	compile 'org.slf4j:slf4j-simple:1.6.1'
+	['jaxrs', 'jackson-provider'].each {
+		compile ("org.jboss.resteasy:resteasy-$it:$resteasy") {
+			exclude group: 'org.slf4j'
+		}
+	}
+
+	providedCompile 'javax.servlet:javax.servlet-api:3.0.1'
+
+	testCompile 'junit:junit:4.+'
+	testCompile ("org.jboss.resteasy:resteasy-client:$resteasy")
+	testCompile ("org.jboss.resteasy:tjws:$resteasy") {
+		exclude group: 'javax.servlet'
+	}
+}
+
+eclipse {
+    pathVariables 'GRADLE_USER_HOME': gradle.gradleUserHomeDir
+}
+
+version = '1.0'
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'Okuyama Client', 'Implementation-Version': version
+    }
+}
+
+// For quick run
+apply plugin: 'jetty'
+jettyRun.contextPath = jettyRunWar.contextPath = ''

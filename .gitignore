@@ -29,3 +29,7 @@ Thumbs.db
 .svn
 .idea
 .gradle
+target
+build
+bin
+
