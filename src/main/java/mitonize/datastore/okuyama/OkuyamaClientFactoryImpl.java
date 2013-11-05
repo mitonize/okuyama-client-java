@@ -1,8 +1,8 @@
-package mitonize.web.datastore.okuyama;
+package mitonize.datastore.okuyama;
 
 import java.net.UnknownHostException;
 
-import mitonize.web.datastore.ChannelManager;
+import mitonize.datastore.ChannelManager;
 
 
 public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {

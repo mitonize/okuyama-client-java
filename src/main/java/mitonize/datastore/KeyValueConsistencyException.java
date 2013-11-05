@@ -1,4 +1,4 @@
-package mitonize.web.datastore;
+package mitonize.datastore;
 
 /**
  * キー・バリューの更新の際に、既に期待した状態になっていなかった場合に発生する例外。

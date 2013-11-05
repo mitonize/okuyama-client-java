@@ -1,4 +1,4 @@
-package mitonize.web.datastore.okuyama;
+package mitonize.datastore.okuyama;
 
 import java.io.IOException;
 

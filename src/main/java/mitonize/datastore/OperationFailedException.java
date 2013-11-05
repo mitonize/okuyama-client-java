@@ -1,4 +1,4 @@
-package mitonize.web.datastore;
+package mitonize.datastore;
 
 public class OperationFailedException extends Exception {
 	private static final long serialVersionUID = 1L;

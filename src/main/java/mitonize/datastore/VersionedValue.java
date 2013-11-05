@@ -1,4 +1,4 @@
-package mitonize.web.datastore;
+package mitonize.datastore;
 
 public class VersionedValue {
 	private Object value;

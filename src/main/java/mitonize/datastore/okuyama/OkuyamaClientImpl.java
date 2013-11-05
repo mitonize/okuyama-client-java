@@ -1,4 +1,4 @@
-package mitonize.web.datastore.okuyama;
+package mitonize.datastore.okuyama;
 
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
@@ -11,10 +11,10 @@ import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 
-import mitonize.web.datastore.ChannelManager;
-import mitonize.web.datastore.OperationFailedException;
-import mitonize.web.datastore.Pair;
-import mitonize.web.datastore.VersionedValue;
+import mitonize.datastore.ChannelManager;
+import mitonize.datastore.OperationFailedException;
+import mitonize.datastore.Pair;
+import mitonize.datastore.VersionedValue;
 
 import org.apache.commons.codec.binary.Base64;
 

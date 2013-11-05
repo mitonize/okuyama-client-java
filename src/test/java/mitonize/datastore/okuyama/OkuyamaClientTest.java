@@ -1,4 +1,4 @@
-package mitonize.web.datastore.okuyama;
+package mitonize.datastore.okuyama;
 
 import static org.junit.Assert.*;
 
@@ -7,9 +7,12 @@ import java.net.UnknownHostException;
 import java.util.Arrays;
 import java.util.Date;
 
-import mitonize.web.datastore.OperationFailedException;
-import mitonize.web.datastore.Pair;
-import mitonize.web.datastore.VersionedValue;
+import mitonize.datastore.OperationFailedException;
+import mitonize.datastore.Pair;
+import mitonize.datastore.VersionedValue;
+import mitonize.datastore.okuyama.OkuyamaClient;
+import mitonize.datastore.okuyama.OkuyamaClientFactory;
+import mitonize.datastore.okuyama.OkuyamaClientFactoryImpl;
 
 import org.apache.commons.codec.binary.Base64;
 import org.junit.Before;

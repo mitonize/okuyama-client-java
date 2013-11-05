@@ -1,11 +1,11 @@
-package mitonize.web.datastore.okuyama;
+package mitonize.datastore.okuyama;
 
 import java.io.IOException;
 
-import mitonize.web.datastore.KeyValueConsistencyException;
-import mitonize.web.datastore.OperationFailedException;
-import mitonize.web.datastore.Pair;
-import mitonize.web.datastore.VersionedValue;
+import mitonize.datastore.KeyValueConsistencyException;
+import mitonize.datastore.OperationFailedException;
+import mitonize.datastore.Pair;
+import mitonize.datastore.VersionedValue;
 
 
 /**

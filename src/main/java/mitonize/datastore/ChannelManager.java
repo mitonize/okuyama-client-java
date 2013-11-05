@@ -1,4 +1,4 @@
-package mitonize.web.datastore;
+package mitonize.datastore;
 
 import java.io.IOException;
 import java.net.InetAddress;
