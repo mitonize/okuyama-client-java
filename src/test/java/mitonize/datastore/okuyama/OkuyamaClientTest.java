@@ -4,6 +4,7 @@ import static org.junit.Assert.*;
 
 import java.io.IOException;
 import java.net.UnknownHostException;
+import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Date;
 
@@ -25,7 +26,7 @@ public class OkuyamaClientTest {
 	
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
-		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"});
+		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"}, true);
 	}
 
 	@Test
@@ -78,17 +79,87 @@ public class OkuyamaClientTest {
 	public void test1_4() throws IOException {
 		OkuyamaClient client = factory.createClient();
 
-		char[] verylargevalue = new char[1572865];
-		Arrays.fill(verylargevalue, 'a');
+		long maxlength = client.initClient();
+		int size = (int) maxlength + 55005;
+		// 55005 OK                    2170528
+		// 55006 NG:Max Data Size Over 2170532
+		// 55021 Value Length Error    2170556
+		byte[] verylargevalue = new byte[size];
+		Arrays.fill(verylargevalue, (byte)'a');
 		try {
-			// TODO:内部バッファの容量よりも大きいサイズの値を登録しようとすると BufferOverflowExceptionが発生
 			client.setObjectValue("hoge2", verylargevalue, null, 0);
 			fail("must throw an exception");
 		} catch (OperationFailedException e) {
 			System.out.println(e.getMessage());
 		}
 	}
-	
+
+	@Test
+	public void test1_5_expire() throws IOException, ClassNotFoundException, OperationFailedException, InterruptedException {
+		OkuyamaClient client = factory.createClient();
+
+		client.setObjectValue("hoge3", "タイムアウト", null, 1);
+		Thread.sleep(2000);
+		String str = (String) client.getObjectValue("hoge3");
+		System.out.println(str);
+	}
+
+	@Test
+	public void test1_6_set_null() throws IOException, OperationFailedException {
+		OkuyamaClient client = factory.createClient();
+
+		client.setObjectValue("hoge6", "", new String[]{"tag1","tag2"}, 0);
+		client.setObjectValue("hoge6", null, new String[]{"tag1","tag2"}, 0);
+	}
+
+	class Load implements Runnable {
+		static final int LOOP_COUNT = 10000;
+		private String id;
+		private Object notifier;
+		public Load(String id, Object notifier) {
+			this.id = id;
+			this.notifier = notifier;
+		}
+
+		@Override
+		public void run() {
+			OkuyamaClient client = factory.createClient();
+//			try {
+//				notifier.wait();
+//			} catch (InterruptedException e1) {
+//				e1.printStackTrace();
+//			}
+			for (int i = 0; i < LOOP_COUNT; ++i) {
+				String key = String.format("%s_%08d", id, i);
+				try {
+					client.setObjectValue(key, Integer.toString(i), null, 2);
+					client.getObjectValue(key);
+				} catch (IOException e) {
+					e.printStackTrace();
+				} catch (OperationFailedException e) {
+					e.printStackTrace();
+				} catch (ClassNotFoundException e) {
+					e.printStackTrace();
+				}
+			}
+		}
+	}
+	@Test
+	public void test1_7_multithread() throws IOException, OperationFailedException, InterruptedException {
+		Object notifier = new Object();
+		ArrayList<Thread> threads = new ArrayList<>();
+		for (int i = 0; i < 10; ++i) {
+			Thread thread = new Thread(new Load("key" + i, notifier));
+			threads.add(thread);
+			thread.start();
+		}
+		for (int i = 0; i < threads.size(); ++i) {
+			threads.get(i).join();
+		}
+		notifier.notifyAll();
+	}
+
+
 	@Test
 	public void test2_0() throws IOException, ClassNotFoundException, OperationFailedException {
 		OkuyamaClient client = factory.createClient();

@@ -5,11 +5,16 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
+import java.io.OutputStream;
 import java.nio.ByteBuffer;
 import java.nio.CharBuffer;
 import java.nio.channels.SocketChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
+import java.util.zip.DataFormatException;
+import java.util.zip.Deflater;
+import java.util.zip.DeflaterOutputStream;
+import java.util.zip.Inflater;
 
 import mitonize.datastore.ChannelManager;
 import mitonize.datastore.OperationFailedException;
@@ -17,11 +22,19 @@ import mitonize.datastore.Pair;
 import mitonize.datastore.VersionedValue;
 
 import org.apache.commons.codec.binary.Base64;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
+import com.sun.xml.internal.ws.api.streaming.XMLStreamReaderFactory.Default;
 
 public class OkuyamaClientImpl implements OkuyamaClient {
+	Logger logger = LoggerFactory.getLogger(OkuyamaClientImpl.class);
+
 	ChannelManager channelManager;
 	Charset cs;
 	boolean base64Key = true;
+	ByteBuffer buffer = ByteBuffer.allocate(8129);
+	private boolean doCompress = true;
 
 	public OkuyamaClientImpl(ChannelManager channelManager) {
 		this.channelManager = channelManager;
@@ -34,19 +47,33 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	 * @param protocolNo プロトコル番号
 	 * @return ByteBufferインスタンス
 	 */
-	ByteBuffer createBuffer(int protocolNo) {
-		ByteBuffer buffer = ByteBuffer.allocate(8129);
+	void createBuffer(int protocolNo) {
+		buffer.clear();
 		buffer.put(Integer.toString(protocolNo).getBytes());
-		return buffer;
 	}
 
+	/**
+	 * プロトコル書式に合わせてセパレータをバッファに追加する。
+	 * @param buffer ByteBufferオブジェクト
+	 * @throws IOException 
+	 */
+	void appendSeparator(SocketChannel channel) throws IOException {
+		buffer.put((byte)',');
+	}
 	/**
 	 * プロトコル書式に合わせて数値フィールドをバッファに追加する。
 	 * @param buffer ByteBufferオブジェクト
 	 * @param num 数値
+	 * @throws IOException 
 	 */
-	void appendNumber(ByteBuffer buffer, long num) {
-		buffer.put((byte)',').put(Long.toString(num).getBytes());
+	void appendNumber(SocketChannel channel, long num) throws IOException {
+		byte[] b = Long.toString(num).getBytes();
+		if (buffer.remaining() < b.length + 1) {
+			buffer.flip();
+			channel.write(buffer);
+			buffer.flip();
+		}
+		buffer.put((byte)',').put(b);
 	}
 
 	/**
@@ -54,11 +81,21 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	 * @param buffer ByteBufferオブジェクト
 	 * @param str 文字列
 	 * @param base64 Base64エンコード有無
+	 * @throws IOException 
 	 */
-	void appendString(ByteBuffer buffer, String str, boolean base64) {
+	void appendString(SocketChannel channel, String str, boolean base64) throws IOException {
+		if (str == null || str.length() == 0) {
+			str = "(B)";
+			base64 = false;
+		}
 		ByteBuffer b = cs.encode(CharBuffer.wrap(str));
 		if (base64) {
 			b = ByteBuffer.wrap(Base64.encodeBase64(b.array()));
+		}
+		if (buffer.remaining() < b.position() + 1) {
+			buffer.flip();
+			channel.write(buffer);
+			buffer.flip();
 		}
 		buffer.put((byte)',').put(b);
 	}
@@ -70,13 +107,29 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	 * @param obj オブジェクト
 	 * @throws IOException シリアライズできない場合
 	 */
-	void appendSerializedObjectBase64(ByteBuffer buffer, Object obj) throws IOException {
-		ByteArrayOutputStream b = new ByteArrayOutputStream();
-		ObjectOutputStream stream = new ObjectOutputStream(b);
+	void appendSerializedObjectBase64(SocketChannel channel, Object obj) throws IOException {
+		if (obj == null) {
+			appendString(channel, "(B)", false);
+			return;
+		}
+		ByteArrayOutputStream baos = new ByteArrayOutputStream();
+		ObjectOutputStream stream = new ObjectOutputStream(baos);
 		stream.writeObject(obj);
-		byte[] r = b.toByteArray();
-		r = Base64.encodeBase64(r);
-		buffer.put((byte)',').put(r);
+		stream.close();
+
+		byte[] b = baos.toByteArray();	
+		b = Base64.encodeBase64(b);
+		buffer.put((byte)',');
+		System.err.println("size:" + b.length);
+		if (buffer.remaining() < b.length + 1) {
+			buffer.flip();
+			channel.write(buffer);
+			channel.write(ByteBuffer.wrap(b));
+			buffer.flip();
+			buffer.clear();
+		} else {
+			buffer.put(b);
+		}
 	}
 
 	/**
@@ -86,7 +139,7 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	 * @param strs 文字列リスト
 	 * @param base64 Base64エンコード有無
 	 */
-	void appendStringList(ByteBuffer buffer, String[] strs, boolean base64) {
+	void appendStringList(SocketChannel channel, String[] strs, boolean base64) {
 		if (strs == null) {
 			buffer.put((byte)',').put("(B)".getBytes());			
 		} else {
@@ -110,13 +163,15 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	 * @param request リクエストの ByteBufferオブジェクト
 	 * @throws IOException 通信に何らかのエラーが発生した場合
 	 */
-	void sendRequest(SocketChannel channel, ByteBuffer request) throws IOException {
-		request.put((byte)'\n');
-		request.flip();
-		while (request.hasRemaining()) {
-			channel.write(request);
+	void sendRequest(SocketChannel channel) throws IOException {
+		buffer.put((byte)'\n');
+		buffer.flip();
+		while (buffer.hasRemaining()) {
+			channel.write(buffer);
 		}
-		System.err.print("REQUEST:" + cs.decode((ByteBuffer) request.rewind()).toString());
+		if (logger.isDebugEnabled()) {
+			logger.debug(cs.decode((ByteBuffer) buffer.rewind()).toString());
+		}
 	}
 
 	/**
@@ -271,6 +326,7 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 		if (b.length == 0) {
 			return null;
 		}
+
 		/**
 		 * シリアル化されたバイト列はマジックコード 0xac 0xed で始まるという
 		 * JavaSEの仕様(Object Serialization Stream Protocol)である。
@@ -290,8 +346,8 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public long initClient() throws IOException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(0);
-			sendRequest(channel, request);
+			createBuffer(0);
+			sendRequest(channel);
 	
 			ByteBuffer buffer = readResponse(channel);
 			long code = nextNumber(buffer, channel);
@@ -314,17 +370,18 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public boolean setObjectValue(String key, Object value, String[] tags, long age) throws IOException, OperationFailedException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(1);
-			appendString(request, key, base64Key);
-			appendStringList(request, tags, true);
-			appendNumber(request, 0);
+			createBuffer(1);
+			appendString(channel, key, base64Key);
+			appendStringList(channel, tags, true);
+			appendNumber(channel, 0);
 			if (value instanceof String) {
-				appendString(request, (String) value, true);				
+				appendString(channel, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(request, value);
+				appendSerializedObjectBase64(channel, value);
 			}
-			appendNumber(request, 0);
-			sendRequest(channel, request);
+			appendNumber(channel, age);
+			appendSeparator(channel);
+			sendRequest(channel);
 	
 			ByteBuffer buffer = readResponse(channel);
 			long code = nextNumber(buffer, channel);
@@ -338,7 +395,8 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 				String msg = nextString(buffer, channel, false);				
 				throw new OperationFailedException(msg);
 			} else {
-				throw new OperationFailedException();				
+				String msg = nextString(buffer, channel, false);
+				throw new OperationFailedException(msg);
 			}
 		} finally {
 			channelManager.recycle(channel);
@@ -349,9 +407,9 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public Object getObjectValue(String key) throws IOException, ClassNotFoundException, OperationFailedException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(2);
-			appendString(request, key, base64Key);
-			sendRequest(channel, request);
+			createBuffer(2);
+			appendString(channel, key, base64Key);
+			sendRequest(channel);
 	
 			ByteBuffer buffer = readResponse(channel);
 			long code = nextNumber(buffer, channel);
@@ -381,10 +439,10 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public String[] getTagKeys(String tag, boolean withDeletedKeys) throws IOException, OperationFailedException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(4);
-			appendString(request, tag, base64Key);
-			appendString(request, withDeletedKeys ? "true": "false", false);
-			sendRequest(channel, request);
+			createBuffer(4);
+			appendString(channel, tag, base64Key);
+			appendString(channel, withDeletedKeys ? "true": "false", false);
+			sendRequest(channel);
 
 			ByteBuffer buffer = readResponse(channel);
 			long code = nextNumber(buffer, channel);
@@ -407,9 +465,9 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public VersionedValue getObjectValueVersionCheck(String key) throws IOException, ClassNotFoundException, OperationFailedException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(15);
-			appendString(request, key, base64Key);
-			sendRequest(channel, request);
+			createBuffer(15);
+			appendString(channel, key, base64Key);
+			sendRequest(channel);
 	
 			ByteBuffer buffer = readResponse(channel);
 			long code = nextNumber(buffer, channel);
@@ -440,18 +498,18 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public boolean setObjectValueVersionCheck(String key, Object value, String version, String[] tags, long age) throws IOException, OperationFailedException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(16);
-			appendString(request, key, base64Key);
-			appendStringList(request, tags, true);
-			appendNumber(request, 0);
+			createBuffer(16);
+			appendString(channel, key, base64Key);
+			appendStringList(channel, tags, true);
+			appendNumber(channel, 0);
 			if (value instanceof String) {
-				appendString(request, (String) value, true);				
+				appendString(channel, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(request, value);
+				appendSerializedObjectBase64(channel, value);
 			}
-//			appendNumber(request, 0);
-			appendString(request, version, false);
-			sendRequest(channel, request);
+//			appendNumber(channel, 0);
+			appendString(channel, version, false);
+			sendRequest(channel);
 	
 			ByteBuffer buffer = readResponse(channel);
 			long code = nextNumber(buffer, channel);
@@ -476,9 +534,9 @@ public class OkuyamaClientImpl implements OkuyamaClient {
 	public Pair[] getPairsByTag(String tag) throws IOException, ClassNotFoundException {
 		SocketChannel channel = channelManager.aquire();
 		try	{
-			ByteBuffer request = createBuffer(23);
-			appendString(request, tag, true);
-			sendRequest(channel, request);
+			createBuffer(23);
+			appendString(channel, tag, true);
+			sendRequest(channel);
 
 			ByteBuffer buffer = readResponse(channel);
 			ArrayList<Pair> list = new ArrayList<Pair>(); 
