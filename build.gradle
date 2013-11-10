@@ -16,28 +16,10 @@ repositories {
 }
 
 dependencies {
-	def resteasy = '3.0-beta-4'
-	compile 'org.slf4j:slf4j-simple:1.6.1'
-	compile 'commons-codec:commons-codec:1.8'
-//	compile 'commons-pool:commons-pool:1.6'
-//	['jaxrs', 'jackson-provider'].each {
-//		compile ("org.jboss.resteasy:resteasy-$it:$resteasy") {
-//			exclude group: 'org.slf4j'
-//		}
-//	}
-
-	providedCompile 'javax.servlet:javax.servlet-api:3.0.1'
+	compile 'org.slf4j:slf4j-log4j12:1.7.5'
 
 	testCompile 'junit:junit:4.+'
-//	testCompile ("org.jboss.resteasy:resteasy-client:$resteasy")
-//	testCompile ("org.jboss.resteasy:tjws:$resteasy") {
-//		exclude group: 'javax.servlet'
-//	}
 }
-
-//eclipse {
-//    pathVariables 'GRADLE_USER_HOME': gradle.gradleUserHomeDir
-//}
 
 version = '1.0'
 jar {

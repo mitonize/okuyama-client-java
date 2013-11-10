@@ -3,58 +3,88 @@ package mitonize.datastore.okuyama;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
 import java.io.OutputStream;
-import java.net.Socket;
+import java.nio.BufferOverflowException;
 import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
-import java.nio.channels.Channel;
-import java.nio.channels.Channels;
-import java.nio.channels.ReadableByteChannel;
-import java.nio.channels.WritableByteChannel;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
-import java.util.zip.DataFormatException;
-import java.util.zip.Deflater;
-import java.util.zip.DeflaterOutputStream;
-import java.util.zip.Inflater;
 
-import mitonize.datastore.ChannelManager;
+import mitonize.datastore.Base64;
+import mitonize.datastore.KeyValueConsistencyException;
 import mitonize.datastore.OperationFailedException;
 import mitonize.datastore.Pair;
 import mitonize.datastore.SocketManager;
+import mitonize.datastore.SocketStreams;
 import mitonize.datastore.VersionedValue;
 
-import org.apache.commons.codec.binary.Base64;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-import com.sun.xml.internal.ws.api.streaming.XMLStreamReaderFactory.Default;
-
 public class OkuyamaClientImpl2 implements OkuyamaClient {
 	Logger logger = LoggerFactory.getLogger(OkuyamaClientImpl2.class);
+	
+	static final char VALUE_SEPARATOR = ',';
+	static final int BLOCK_SIZE = 8192;
 
 	SocketManager socketManager;
 	Charset cs;
 	boolean base64Key = true;
-	ByteBuffer buffer = ByteBuffer.allocate(8129);
-	private boolean doCompress = true;
+	boolean serializeString = false;
+	ByteBuffer buffer;
 
-	public OkuyamaClientImpl2(SocketManager socketManager) {
+	/**
+	 * OkuyamaClient インスタンスを生成する。
+	 * 
+	 * @param socketManager ソケットマネージャ
+	 * @param base64Key キーをBase64エンコードする。
+	 * @param serializeString 値に文字列を保管するときにシリアライズするなら true。 falseなら文字列をUTF-8でBase64エンコードする。
+	 */
+	public OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString) {
+		this.cs = Charset.forName("UTF-8");
+		this.buffer = ByteBuffer.allocate(BLOCK_SIZE);
 		this.socketManager = socketManager;
-		cs = Charset.forName("UTF-8");
+		this.base64Key = base64Key;
+		this.serializeString = serializeString;
 	}
 
+	/**
+	 * キー文字列に不正な文字が含まれないかをチェックする
+	 * @param key キー文字列
+	 */
+	void validateKey(String key) {
+		for (int i=key.length() - 1; i >= 0; --i) {
+			if (Character.isISOControl(key.codePointAt(i))) {
+				throw new IllegalArgumentException();				
+			};
+		}
+	}
+	
+	/**
+	 * Nullを表すバイト列かどうかを確認する
+	 * @param b バイト列
+	 * @return Nullを表すバイト列ならtrue
+	 */
+	boolean isNullString(ByteBuffer b) {
+		b.mark();
+		if (b.remaining() >= 3 && b.get() == '(' && b.get() == 'B' && b.get() == ')') {
+			b.reset();
+			return true;
+		}
+		b.reset();
+		return false;
+	}
 	
 	/**
 	 * 指定されたプロトコル番号を設定したリクエスト用のバッファを生成する。
 	 * @param protocolNo プロトコル番号
 	 * @return ByteBufferインスタンス
+	 * @throws IOException 
 	 */
-	void createBuffer(int protocolNo) {
-		buffer.clear();
-		buffer.put(Integer.toString(protocolNo).getBytes());
+	void createBuffer(OutputStream os, int protocolNo) throws IOException {
+		os.write(Integer.toString(protocolNo).getBytes());
 	}
 
 	/**
@@ -62,8 +92,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param buffer ByteBufferオブジェクト
 	 * @throws IOException 
 	 */
-	void appendSeparator(WritableByteChannel channel) throws IOException {
-		buffer.put((byte)',');
+	void appendSeparator(OutputStream os) throws IOException {
+		os.write(VALUE_SEPARATOR);
 	}
 	/**
 	 * プロトコル書式に合わせて数値フィールドをバッファに追加する。
@@ -71,14 +101,10 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param num 数値
 	 * @throws IOException 
 	 */
-	void appendNumber(WritableByteChannel channel, long num) throws IOException {
+	void appendNumber(OutputStream os, long num) throws IOException {
 		byte[] b = Long.toString(num).getBytes();
-		if (buffer.remaining() < b.length + 1) {
-			buffer.flip();
-			channel.write(buffer);
-			buffer.flip();
-		}
-		buffer.put((byte)',').put(b);
+		os.write(VALUE_SEPARATOR);
+		os.write(b);
 	}
 
 	/**
@@ -88,21 +114,19 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64 Base64エンコード有無
 	 * @throws IOException 
 	 */
-	void appendString(WritableByteChannel channel, String str, boolean base64) throws IOException {
-		if (str == null || str.length() == 0) {
+	void appendString(OutputStream os, String str, boolean base64) throws IOException {
+		if (str == null) {
 			str = "(B)";
 			base64 = false;
+//			os.write(VALUE_SEPARATOR);
+//			return;
 		}
-		ByteBuffer b = cs.encode(CharBuffer.wrap(str));
+		ByteBuffer b = cs.encode(str);
 		if (base64) {
-			b = ByteBuffer.wrap(Base64.encodeBase64(b.array()));
+			b = Base64.encodeBuffer(b);
 		}
-		if (buffer.remaining() < b.position() + 1) {
-			buffer.flip();
-			channel.write(buffer);
-			buffer.flip();
-		}
-		buffer.put((byte)',').put(b);
+		os.write(VALUE_SEPARATOR);
+		os.write(b.array(), 0, b.limit());
 	}
 
 	/**
@@ -112,9 +136,9 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param obj オブジェクト
 	 * @throws IOException シリアライズできない場合
 	 */
-	void appendSerializedObjectBase64(WritableByteChannel channel, Object obj) throws IOException {
+	void appendSerializedObjectBase64(OutputStream os, Object obj) throws IOException {
 		if (obj == null) {
-			appendString(channel, "(B)", false);
+			appendString(os, "(B)", false);
 			return;
 		}
 		ByteArrayOutputStream baos = new ByteArrayOutputStream();
@@ -123,18 +147,9 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		stream.close();
 
 		byte[] b = baos.toByteArray();	
-		b = Base64.encodeBase64(b);
-		buffer.put((byte)',');
-		System.err.println("size:" + b.length);
-		if (buffer.remaining() < b.length + 1) {
-			buffer.flip();
-			channel.write(buffer);
-			channel.write(ByteBuffer.wrap(b));
-			buffer.flip();
-			buffer.clear();
-		} else {
-			buffer.put(b);
-		}
+		ByteBuffer buf = Base64.encodeBuffer(ByteBuffer.wrap(b));
+		os.write(VALUE_SEPARATOR);
+		os.write(buf.array(), 0, buf.limit());
 	}
 
 	/**
@@ -143,21 +158,25 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param buffer ByteBufferオブジェクト
 	 * @param strs 文字列リスト
 	 * @param base64 Base64エンコード有無
+	 * @throws IOException 
 	 */
-	void appendStringList(WritableByteChannel channel, String[] strs, boolean base64) {
+	void appendStringList(OutputStream os, String[] strs, boolean base64) throws IOException {
 		if (strs == null) {
-			buffer.put((byte)',').put("(B)".getBytes());			
+			os.write(VALUE_SEPARATOR);
+			os.write("(B)".getBytes());			
 		} else {
-			buffer.put((byte)',');
+			os.write(VALUE_SEPARATOR);
 			for (int i=0; i < strs.length; ++i) {
 				if (i != 0) {
-					buffer.put((byte)':');
-				}				
+					os.write(':');
+				}
 				byte[] b = strs[i].getBytes();
 				if (base64) {
-					b = Base64.encodeBase64(b);
+					ByteBuffer buf = Base64.encodeBuffer(ByteBuffer.wrap(b));
+					os.write(buf.array(), 0, buf.limit());
+				} else {
+					os.write(b);
 				}
-				buffer.put(b);
 			}
 		}
 	}
@@ -168,15 +187,9 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param request リクエストの ByteBufferオブジェクト
 	 * @throws IOException 通信に何らかのエラーが発生した場合
 	 */
-	void sendRequest(WritableByteChannel channel) throws IOException {
-		buffer.put((byte)'\n');
-		buffer.flip();
-		while (buffer.hasRemaining()) {
-			channel.write(buffer);
-		}
-		if (logger.isDebugEnabled()) {
-			logger.debug(cs.decode((ByteBuffer) buffer.rewind()).toString());
-		}
+	void sendRequest(OutputStream os) throws IOException {
+		os.write('\n');
+		os.flush();
 	}
 
 	/**
@@ -185,11 +198,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @return レスポンスを読み込んだバッファ
 	 * @throws IOException 通信に何らかのエラーが発生した場合
 	 */
-	ByteBuffer readResponse(ReadableByteChannel channel) throws IOException {
-		ByteBuffer buffer = ByteBuffer.allocate(8192);
-		channel.read(buffer);
+	void readResponse(InputStream is) throws IOException {
+		buffer.clear();
+		int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+		if (read < 0) {
+			throw new IOException("No more data on stream");
+		}
+		buffer.position(buffer.position() + read);
 		buffer.flip();
-		return buffer;
 	}
 
 
@@ -199,23 +215,28 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param channel ソケットチャネル
 	 * @return 読み取った数値
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws {@link IllegalStateException} 期待したフォーマットでない場合
+	 * @throws OperationFailedException 
+	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
-	long nextNumber(ByteBuffer buffer, ReadableByteChannel channel) throws IOException {
+	long nextNumber(InputStream is) throws IOException, OperationFailedException {
 		long code = 0;
 		while (true) {
 			while (buffer.hasRemaining()) {
 				byte ch = buffer.get();
 				if ('0' <= ch && ch <= '9') {
 					code = code * 10 + (ch - '0');
-				} else if (ch == ',' || ch == '\n') {
+				} else if (ch == VALUE_SEPARATOR || ch == '\n') {
 					return (int) code;
 				} else {
-					throw new IllegalStateException(String.format("Format error on expecting digit: %c", ch));
+					throw new OperationFailedException(String.format("Format error on expecting digit: %c", ch));
 				}
 			}
-			buffer.flip();
-			channel.read(buffer);
+			buffer.clear();
+			int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+			buffer.position(buffer.position() + read);
+			if (read == 0) {
+				throw new OperationFailedException("buffer underflow");
+			}
 			buffer.flip();
 		}
 	}
@@ -227,26 +248,44 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64Key 読み取る文字列がBase64エンコードされている前提でデコードする。
 	 * @return 読み取った文字列
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws {@link IllegalStateException} 期待したフォーマットでない場合
+	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
-	String nextString(ByteBuffer buffer, ReadableByteChannel channel, boolean base64Key) throws IOException {
-		ByteBuffer strBuffer = ByteBuffer.allocate(8192);
+	String nextString(InputStream is, boolean base64Key) throws IOException, OperationFailedException {
+		ByteBuffer strBuffer = ByteBuffer.allocate(BLOCK_SIZE);
 		while (true) {
-			while (buffer.hasRemaining()) {
-				byte ch = buffer.get();
-				if (ch == ',' || ch == '\n') {
-					strBuffer.flip();
-					if (base64Key) {
-						return cs.decode(ByteBuffer.wrap(Base64.decodeBase64(strBuffer.array()))).toString();
+			try {
+				while (buffer.hasRemaining()) {
+					byte ch = buffer.get();
+					if (ch == VALUE_SEPARATOR || ch == '\n') {
+						strBuffer.flip();
+						if (strBuffer.limit() == 0) {
+							return "";
+						}
+						if (isNullString(strBuffer)) {
+							return null;
+						}
+						if (base64Key) {
+							ByteBuffer b = Base64.decodeBuffer(strBuffer);
+							return cs.decode(b).toString();
+						} else {
+							return cs.decode(strBuffer).toString();
+						}
 					} else {
-						return cs.decode(strBuffer).toString();
+						strBuffer.put(ch);
 					}
-				} else {
-					strBuffer.put(ch);
 				}
+			} catch (BufferOverflowException e) {
+				// 足りなくなれば追加
+				ByteBuffer newBytes = ByteBuffer.allocate(strBuffer.capacity() + BLOCK_SIZE);
+				newBytes.put(strBuffer);
+				strBuffer = newBytes;
 			}
-			buffer.flip();
-			channel.read(buffer);
+			buffer.clear();
+			int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+			buffer.position(buffer.position() + read);
+			if (read == 0) {
+//				throw new OperationFailedException("buffer underflow");
+			}
 			buffer.flip();
 		}
 	}
@@ -258,35 +297,49 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64Key 読み取る文字列がBase64エンコードされている前提でデコードする。
 	 * @return 読み取った文字列の配列
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws {@link IllegalStateException} 期待したフォーマットでない場合
+	 * @throws OperationFailedException 
+	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
-	String[] nextStringList(ByteBuffer buffer, ReadableByteChannel channel, boolean base64Key) throws IOException {
-		ByteBuffer strBuffer = ByteBuffer.allocate(8192);
+	String[] nextStringList(InputStream is, boolean base64Key) throws IOException, OperationFailedException {
+		ByteBuffer strBuffer = ByteBuffer.allocate(BLOCK_SIZE);
 		ArrayList<String> list = new ArrayList<String>();
 		while (true) {
-			while (buffer.hasRemaining()) {
-				byte ch = buffer.get();
-				if (ch == ':') {
-					if (base64Key) {
-						list.add(cs.decode(ByteBuffer.wrap(Base64.decodeBase64(strBuffer.array()))).toString());
+			try {
+				while (buffer.hasRemaining()) {
+					byte ch = buffer.get();
+					if (ch == ':') {
+						strBuffer.flip();
+						if (base64Key) {
+							list.add(cs.decode(Base64.decodeBuffer(strBuffer)).toString());
+						} else {
+							list.add(cs.decode(strBuffer).toString());
+						}			
+						strBuffer.clear();
+					} else if (ch == VALUE_SEPARATOR || ch == '\n') {
+						strBuffer.flip();
+						if (base64Key) {
+							list.add(cs.decode(Base64.decodeBuffer(strBuffer)).toString());
+						} else {
+							list.add(cs.decode(strBuffer).toString());
+						}
+						strBuffer.clear();
+						return list.toArray(new String[list.size()]);
 					} else {
-						list.add(cs.decode(strBuffer).toString());
-					}			
-				}
-				if (ch == ',' || ch == '\n') {
-					strBuffer.flip();
-					if (base64Key) {
-						list.add(cs.decode(ByteBuffer.wrap(Base64.decodeBase64(strBuffer.array()))).toString());
-					} else {
-						list.add(cs.decode(strBuffer).toString());
+						strBuffer.put(ch);
 					}
-					return list.toArray(new String[list.size()]);
-				} else {
-					strBuffer.put(ch);
 				}
+			} catch (BufferOverflowException e) {
+				// 足りなくなれば追加
+				ByteBuffer newBytes = ByteBuffer.allocate(strBuffer.capacity() + BLOCK_SIZE);
+				newBytes.put(strBuffer);
+				strBuffer = newBytes;
 			}
-			buffer.flip();
-			channel.read(buffer);
+			buffer.clear();
+			int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+			buffer.position(buffer.position() + read);
+			if (read == 0) {
+				throw new OperationFailedException("buffer underflow");
+			}
 			buffer.flip();
 		}
 	}
@@ -299,22 +352,41 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @return 読み取ったバイト列
 	 * @throws IOException 通信に何らかのエラーが発生した場合
 	 * @throws ClassNotFoundException  
-	 * @throws {@link IllegalStateException} 期待したフォーマットでない場合
+	 * @throws OperationFailedException 
+	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
-	Object nextObject(ByteBuffer buffer, ReadableByteChannel channel) throws IOException, ClassNotFoundException  {
-		ByteBuffer bytes = ByteBuffer.allocate(8192);
+	Object nextObject(InputStream is) throws IOException, ClassNotFoundException, OperationFailedException  {
+		ByteBuffer bytes = ByteBuffer.allocate(BLOCK_SIZE);
 		while (true) {
-			while (buffer.hasRemaining()) {
-				byte ch = buffer.get();
-				if (ch == ',' || ch == '\n') {
-					byte[] b = Base64.decodeBase64(bytes.array());
-					return decodeObject(b);
-				} else {
-					bytes.put(ch);
+			try {
+				while (buffer.hasRemaining()) {
+					byte ch = buffer.get();
+					if (ch == VALUE_SEPARATOR || ch == '\n') {
+						bytes.flip();
+						if (bytes.limit() == 0) {
+							return "";
+						}
+						if (isNullString(bytes)) {
+							return null;
+						}
+						byte[] b = Base64.decodeBuffer(bytes).array();
+						return decodeObject(b);
+					} else {
+						bytes.put(ch);
+					}
 				}
+			} catch (BufferOverflowException e) {
+				// 足りなくなれば追加
+				ByteBuffer newBytes = ByteBuffer.allocate(bytes.capacity() + BLOCK_SIZE);
+				newBytes.put(bytes);
+				bytes = newBytes;
 			}
-			buffer.flip();
-			channel.read(buffer);
+			buffer.clear();
+			int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+			buffer.position(buffer.position() + read);
+			if (read == 0) {
+				throw new OperationFailedException("buffer underflow");
+			}
 			buffer.flip();
 		}
 	}
@@ -348,26 +420,33 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	}
 	
 	@Override
-	public long initClient() throws IOException {
-		Socket socket = socketManager.aquire();
+	public long initClient() throws IOException, OperationFailedException {
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(0);
-			sendRequest(wchannel);
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+			createBuffer(os, 0);
+			sendRequest(os);
 	
-			ByteBuffer buffer = readResponse(rchannel);
-			long code = nextNumber(buffer, rchannel);
+			readResponse(is);
+			long code = nextNumber(is);
 			if (code != 0) {
-				throw new IllegalStateException();
+				throw new OperationFailedException();
 			}
-			String str = nextString(buffer, rchannel, false);
+			String str = nextString(is, false);
 			if (str.equals("true")) {
-				return nextNumber(buffer, rchannel);
+				failed = false;
+				return nextNumber(is);
 			} else {
-				throw new IllegalStateException();
+				throw new OperationFailedException();
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}
 	}
@@ -375,209 +454,463 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public boolean setObjectValue(String key, Object value, String[] tags, long age) throws IOException, OperationFailedException {
-		Socket socket = socketManager.aquire();
+		if (value == null) {
+			throw new IllegalArgumentException("Okuyama does not allow to store null value.");
+		}
+		validateKey(key);
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(1);
-			appendString(wchannel, key, base64Key);
-			appendStringList(wchannel, tags, true);
-			appendNumber(wchannel, 0);
-			if (value instanceof String) {
-				appendString(wchannel, (String) value, true);				
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 1);
+			appendString(os, key, base64Key);
+			appendStringList(os, tags, true);
+			appendNumber(os, 0);
+			if (!serializeString && (value instanceof String)) {
+				appendString(os, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(wchannel, value);
+				appendSerializedObjectBase64(os, value);
 			}
-			appendNumber(wchannel, age);
-			appendSeparator(wchannel);
-			sendRequest(wchannel);
+			appendNumber(os, age);
+			appendSeparator(os);
+			sendRequest(os);
 	
-			ByteBuffer buffer = readResponse(rchannel);
-			long code = nextNumber(buffer, rchannel);
+			readResponse(is);
+			long code = nextNumber(is);
 			if (code != 1) {
-				throw new IllegalStateException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
-			String str = nextString(buffer, rchannel, false);
+			String str = nextString(is, false);
 			if (str.equals("true")) {
+				failed = false;
 				return true;
 			} else if (str.equals("false")){
-				String msg = nextString(buffer, rchannel, false);				
-				throw new OperationFailedException(msg);
+				String msg = nextString(is, false);				
+				logger.debug("setObjectValue failed. ", msg);
+				return false;
 			} else {
-				String msg = nextString(buffer, rchannel, false);
+				String msg = nextString(is, false);
 				throw new OperationFailedException(msg);
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}		
 	}
 
 	@Override
-	public Object getObjectValue(String key) throws IOException, ClassNotFoundException, OperationFailedException {
-		Socket socket = socketManager.aquire();
+	public Object getObjectValue(String key) throws IOException, OperationFailedException {
+		validateKey(key);
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(2);
-			appendString(wchannel, key, base64Key);
-			sendRequest(wchannel);
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 2);
+			appendString(os, key, base64Key);
+			sendRequest(os);
 	
-			ByteBuffer buffer = readResponse(rchannel);
-			long code = nextNumber(buffer, rchannel);
+			readResponse(is);
+			long code = nextNumber(is);
 			if (code != 2) {
-				throw new IllegalStateException();
+				throw new OperationFailedException();
 			}
-			String str = nextString(buffer, rchannel, false);
+			String str = nextString(is, false);
 			if (str.equals("true")) {
-				Object obj = nextObject(buffer, rchannel);
+				Object obj;
+				try {
+					obj = nextObject(is);
+				} catch (ClassNotFoundException e) {
+					// オブジェクトがデシリアライズできなかった場合は値として ClassNotFoundException インスタンスを設定
+					obj = e;
+				}
+				failed = false;
 				return obj;
 			} else if (str.equals("false")) {
 				/** falseの場合は第三列が文字列を返すときはエラーメッセージを例外としてスローし、空の時は値無しとしてnullを返す。 */
-				String msg = nextString(buffer, rchannel, false);
+				String msg = nextString(is, false);
 				if (msg != null && !msg.isEmpty()) {
 					throw new OperationFailedException(msg);
 				}
+				failed = false;
 				return null;
 			} else {
-				throw new OperationFailedException();
+				String msg = nextString(is, false);
+				throw new OperationFailedException(msg);
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
+			socketManager.recycle(socket);
+		}
+	}
+
+	@Override
+	public Object removeObjectValue(String key) throws IOException, OperationFailedException {
+		validateKey(key);
+		SocketStreams socket = null;
+		boolean failed = true;
+		try	{
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 5);
+			appendString(os, key, base64Key);
+			appendNumber(os, 0);
+			sendRequest(os);
+	
+			readResponse(is);
+			long code = nextNumber(is);
+			if (code != 5) {
+				throw new OperationFailedException();
+			}
+			String str = nextString(is, false);
+			if (str.equals("true")) {
+				Object obj;
+				try {
+					obj = nextObject(is);
+				} catch (ClassNotFoundException e) {
+					// オブジェクトがデシリアライズできなかった場合は値として ClassNotFoundException インスタンスを設定
+					obj = e;
+				}
+				failed = false;
+				return obj;
+			} else if (str.equals("false")) {
+				/** falseの場合は第三列が文字列を返すときはエラーメッセージを例外としてスローし、空の時は値無しとしてnullを返す。 */
+				String msg = nextString(is, false);
+				if (msg != null && !msg.isEmpty()) {
+					throw new OperationFailedException(msg);
+				}
+				failed = false;
+				return null;
+			} else {
+				String msg = nextString(is, false);
+				throw new OperationFailedException(msg);
+			}
+		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
+			socketManager.recycle(socket);
+		}
+	}
+
+	@Override
+	public boolean addObjectValue(String key, Object value, String[] tags,
+			long age) throws IOException, OperationFailedException {
+		if (value == null) {
+			throw new IllegalArgumentException("Okuyama does not allow to store null value.");
+		}
+		validateKey(key);
+		SocketStreams socket = null;
+		boolean failed = true;
+		try	{
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 6);
+			appendString(os, key, base64Key);
+			appendStringList(os, tags, true);
+			appendNumber(os, 0);
+			if (!serializeString && (value instanceof String)) {
+				appendString(os, (String) value, true);				
+			} else {
+				appendSerializedObjectBase64(os, value);
+			}
+			appendNumber(os, age);
+			appendSeparator(os);
+			sendRequest(os);
+	
+			readResponse(is);
+			long code = nextNumber(is);
+			if (code != 6) {
+				throw new OperationFailedException("Unexprected code:" + code);
+			}
+			String str = nextString(is, false);
+			if (str.equals("true")) {
+				failed = false;
+				return true;
+			} else if (str.equals("false")){
+				String msg = nextString(is, false);				
+				logger.debug("addObjectValue failed. ", msg);
+				return false;
+			} else {
+				String msg = nextString(is, false);
+				throw new OperationFailedException(msg);
+			}
+		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
+			socketManager.recycle(socket);
+		}		
+	}
+
+	@Override
+	public Object[] getMultiObjectValues(String... keys) throws IOException,
+			OperationFailedException {
+		for (String key: keys) {
+			validateKey(key);
+		}
+		SocketStreams socket = null;
+		boolean failed = true;
+		try	{
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 22);
+			for (String key: keys) {
+				appendString(os, key, base64Key);
+			}
+			sendRequest(os);
+
+			readResponse(is);
+			ArrayList<Object> list = new ArrayList<Object>(); 
+			while (true) {
+				String str = nextString(is, false);
+				if (str.equals("END")) {
+					failed = false;
+					return list.toArray();
+				}
+				if (str.equals("22")) {
+					str = nextString(is, false);
+					if (str.equals("true")) {
+						Object obj;
+						try {
+							obj = nextObject(is);
+						} catch (ClassNotFoundException e) {
+							// オブジェクトがデシリアライズできなかった場合は値として ClassNotFoundException インスタンスを設定
+							obj = e;
+						}
+						list.add(obj);
+					} else if (str.equals("false")){
+						// 存在しないオブジェクトは読みとばす
+						nextString(is, false);
+					} else {
+						String msg = nextString(is, false);
+						throw new OperationFailedException(msg);
+					}
+				} else {
+					String msg = nextString(is, false);				
+					throw new OperationFailedException(msg);
+				}
+			}
+		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}
 	}
 
 	@Override
 	public String[] getTagKeys(String tag, boolean withDeletedKeys) throws IOException, OperationFailedException {
-		Socket socket = socketManager.aquire();
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(4);
-			appendString(wchannel, tag, base64Key);
-			appendString(wchannel, withDeletedKeys ? "true": "false", false);
-			sendRequest(wchannel);
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
 
-			ByteBuffer buffer = readResponse(rchannel);
-			long code = nextNumber(buffer, rchannel);
+			createBuffer(os, 3);
+			appendString(os, tag, true);
+			appendString(os, withDeletedKeys ? "true": "false", false);
+			sendRequest(os);
+
+			readResponse(is);
+			long code = nextNumber(is);
 			if (code != 4) {
-				throw new IllegalStateException();
+				throw new OperationFailedException();
 			}
-			String str = nextString(buffer, rchannel, false);
+			String str = nextString(is, false);
 			if (str.equals("true")) {
-				String[] strs = nextStringList(buffer, rchannel, base64Key);
+				String[] strs = nextStringList(is, base64Key);
+				failed = false;
 				return strs;
 			} else {
 				throw new OperationFailedException();
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}
 	}
 
 	@Override
-	public VersionedValue getObjectValueVersionCheck(String key) throws IOException, ClassNotFoundException, OperationFailedException {
-		Socket socket = socketManager.aquire();
+	public VersionedValue getObjectValueVersionCheck(String key) throws IOException, OperationFailedException {
+		validateKey(key);
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(15);
-			appendString(wchannel, key, base64Key);
-			sendRequest(wchannel);
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 15);
+			appendString(os, key, base64Key);
+			sendRequest(os);
 	
-			ByteBuffer buffer = readResponse(rchannel);
-			long code = nextNumber(buffer, rchannel);
+			readResponse(is);
+			long code = nextNumber(is);
 			if (code != 15) {
-				throw new IllegalStateException();
+				throw new OperationFailedException();
 			}
-			String str = nextString(buffer, rchannel, false);
+			String str = nextString(is, false);
 			if (str.equals("true")) {
-				Object obj = nextObject(buffer, rchannel);
-				String version = nextString(buffer, rchannel, false);
+				Object obj;
+				try {
+					obj = nextObject(is);
+				} catch (ClassNotFoundException e) {
+					// オブジェクトがデシリアライズできなかった場合は値として ClassNotFoundException インスタンスを設定
+					obj = e;
+				}
+				String version = nextString(is, false);
+				failed = false;
 				return new VersionedValue(obj, version);
 			} else if (str.equals("false")) {
 				/** falseの場合は第三列が文字列を返すときはエラーメッセージを例外としてスローし、空の時は値無しとしてnullを返す。 */
-				String msg = nextString(buffer, rchannel, false);
+				String msg = nextString(is, false);
 				if (msg != null && !msg.isEmpty()) {
-					throw new IllegalStateException(msg);
+					throw new OperationFailedException(msg);
 				}
+				failed = false;
 				return null;
 			} else {
-				throw new IllegalStateException();
+				String msg = nextString(is, false);
+				throw new OperationFailedException(msg);
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}
 	}
 
 	@Override
 	public boolean setObjectValueVersionCheck(String key, Object value, String version, String[] tags, long age) throws IOException, OperationFailedException {
-		Socket socket = socketManager.aquire();
+		if (value == null) {
+			throw new IllegalArgumentException("Okuyama does not allow to store null value.");
+		}
+		validateKey(key);
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(16);
-			appendString(wchannel, key, base64Key);
-			appendStringList(wchannel, tags, true);
-			appendNumber(wchannel, 0);
-			if (value instanceof String) {
-				appendString(wchannel, (String) value, true);				
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+
+			createBuffer(os, 16);
+			appendString(os, key, base64Key);
+			appendStringList(os, tags, true);
+			appendNumber(os, 0);
+			if (!serializeString && (value instanceof String)) {
+				appendString(os, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(wchannel, value);
+				appendSerializedObjectBase64(os, value);
 			}
 //			appendNumber(channel, 0);
-			appendString(wchannel, version, false);
-			sendRequest(wchannel);
+			appendString(os, version, false);
+			sendRequest(os);
 	
-			ByteBuffer buffer = readResponse(rchannel);
-			long code = nextNumber(buffer, rchannel);
+			readResponse(is);
+			long code = nextNumber(is);
 			if (code != 16) {
-				throw new IllegalStateException();
+				throw new OperationFailedException();
 			}
-			String str = nextString(buffer, rchannel, false);
+			String str = nextString(is, false);
 			if (str.equals("true")) {
+				failed = false;
 				return true;
 			} else if (str.equals("false")){
-				String msg = nextString(buffer, rchannel, false);				
+				String msg = nextString(is, false);
+				if (msg.equals("NG:Data has already been updated")) {
+					throw new KeyValueConsistencyException(msg);					
+				}
 				throw new OperationFailedException(msg);
 			} else {
-				throw new OperationFailedException();				
+				String msg = nextString(is, false);				
+				throw new OperationFailedException(msg);
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}		
 	}
 
 	@Override
-	public Pair[] getPairsByTag(String tag) throws IOException, ClassNotFoundException {
-		Socket socket = socketManager.aquire();
+	public Pair[] getPairsByTag(String tag) throws IOException, OperationFailedException {
+		SocketStreams socket = null;
+		boolean failed = true;
 		try	{
-			WritableByteChannel wchannel = Channels.newChannel(socket.getOutputStream());
-			ReadableByteChannel rchannel = Channels.newChannel(socket.getInputStream());
-			createBuffer(23);
-			appendString(wchannel, tag, true);
-			sendRequest(wchannel);
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
 
-			ByteBuffer buffer = readResponse(rchannel);
+			createBuffer(os, 23);
+			appendString(os, tag, true);
+			sendRequest(os);
+
+			readResponse(is);
 			ArrayList<Pair> list = new ArrayList<Pair>(); 
 			while (true) {
-				String str = nextString(buffer, rchannel, false);
+				String str = nextString(is, false);
 				if (str.equals("END")) {
+					failed = false;
 					return list.toArray(new Pair[list.size()]);
 				}
 				if (str.equals("23")) {
-					str = nextString(buffer, rchannel, false);
+					str = nextString(is, false);
 					if (str.equals("true")) {
-						String key = nextString(buffer, rchannel, base64Key);
-						Object obj = nextObject(buffer, rchannel);
+						String key = nextString(is, base64Key);
+						Object obj;
+						try {
+							obj = nextObject(is);
+						} catch (ClassNotFoundException e) {
+							// オブジェクトがデシリアライズできなかった場合は値として ClassNotFoundException インスタンスを設定
+							obj = e;
+						}
 						list.add(new Pair(key, obj));
+					} else if (str.equals("false")){
+						// 存在しないオブジェクトは読みとばす
+						nextString(is, false);
 					} else {
-						throw new IllegalStateException();
+						String msg = nextString(is, false);
+						throw new OperationFailedException(msg);
 					}
 				} else {
-					throw new IllegalStateException();
-				}				
+					String msg = nextString(is, false);				
+					throw new OperationFailedException(msg);
+				}
 			}
 		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
 			socketManager.recycle(socket);
 		}
 	}
