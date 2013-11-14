@@ -30,19 +30,26 @@ public class SocketManager {
 	class Endpoint {
 		InetAddress address;
 		int port;
-		boolean online = true;
+		boolean offline = false;
 	}
 	Endpoint[] endpoints;
-	int currentEndpointIndex = 0;
+	long timestampLatelyPooled = 0;
 
 	protected ArrayBlockingQueue<SocketStreams> queue;
 	protected AtomicInteger activeSocketCount;
+	protected AtomicInteger currentEndpointIndex;
 	private boolean dumpStream = false;
+	private int maxPoolSize = 0;
 
 	public SocketManager(String[] masternodes, int maxPoolSize) throws UnknownHostException {
-		queue = new ArrayBlockingQueue<SocketStreams>(maxPoolSize);
-		activeSocketCount = new AtomicInteger(0);
-		endpoints = new Endpoint[masternodes.length];
+		if (masternodes.length == 0) {
+			throw new IllegalStateException("No connection endpoint setting specified.");
+		}
+		this.queue = new ArrayBlockingQueue<SocketStreams>(maxPoolSize);
+		this.activeSocketCount = new AtomicInteger(0);
+		this.currentEndpointIndex = new AtomicInteger(0);
+		this.maxPoolSize = maxPoolSize;
+		this.endpoints = new Endpoint[masternodes.length];
 		for (int i = 0; i < masternodes.length; ++i) {
 			endpoints[i] = new Endpoint();
 			endpoints[i].address = InetAddress.getByName(masternodes[i].split(":")[0]);
@@ -66,43 +73,73 @@ public class SocketManager {
 	public void recycle(SocketStreams socket) {
 		if (socket == null)
 			return;
-		if (!isAvailable(socket) || !queue.offer(socket)) {
+		if (socket.timestamp > timestampLatelyPooled
+				|| !isAvailable(socket)
+				|| !queue.offer(socket)) {
 			closeSocket(socket);
 		}
 	}
 
+	/**
+	 * 次のエンドポイント情報を取得する。
+	 * オフラインマークが付いているものはスキップする。登録されているすべてのエンドポイントにオフラインマークが付いていた場合はnullを返す。
+	 * @return オフラインでないエンドポイント情報。すべてオフラインの場合はnull
+	 */
+	Endpoint nextEndpoint() {
+		int count = endpoints.length;
+		int index = currentEndpointIndex.getAndSet(currentEndpointIndex.incrementAndGet() % count);
+		while (count-- > 0) {
+			if (index >= endpoints.length)
+				index = 0;
+
+			Endpoint endpoint = endpoints[index++];
+			if (endpoint == null)
+				throw new IllegalStateException("No connection endpoint setting specified.");
+			/** オフラインのマークが付いていないならこれを返す */
+			if (!endpoint.offline) {
+				return endpoint;
+			}
+		}
+		return null;
+	}
+
 	@SuppressWarnings("resource")
 	SocketStreams openSocket() throws IOException {
-		if (endpoints.length == 0) {
-			throw new IllegalStateException("No connection endpoint setting specified.");
-		}
-		if (currentEndpointIndex >= endpoints.length)
-			currentEndpointIndex = 0;
-
-		Endpoint endpoint = endpoints[currentEndpointIndex];
-		if (endpoint == null)
-			throw new IllegalStateException("No connection endpoint setting specified.");
-
-		try {
-			InetSocketAddress address = new InetSocketAddress (endpoint.address, endpoint.port);
-			Socket socket = new Socket();
-			socket.setSoTimeout(2000);
-			socket.connect(address, 2000);
-			OutputStream os = new BufferedOutputStream(socket.getOutputStream());
-			InputStream is = new BufferedInputStream(socket.getInputStream());
-			Charset cs = Charset.forName("UTF-8");
-			if (dumpStream) {
-				os = new DumpFilterOutputStream(os, cs);
-				is = new DumpFilterInputStream(is, cs);
+		while (true) {
+			Endpoint endpoint = nextEndpoint();
+			if (endpoint == null) {
+				logger.error("No available endpoint to connect");
+				throw new IOException("No available endpoint to connect");
 			}
-			int c = activeSocketCount.incrementAndGet();
-			if (logger.isInfoEnabled()) {
-				logger.info("Socket opened - count:" + c + " queue:" + queue.size());
+			try {
+				InetSocketAddress address = new InetSocketAddress (endpoint.address, endpoint.port);
+				Socket socket = new Socket();
+				socket.setSoTimeout(2000);
+				socket.connect(address, 2000);
+				OutputStream os = new BufferedOutputStream(socket.getOutputStream());
+				InputStream is = new BufferedInputStream(socket.getInputStream());
+				Charset cs = Charset.forName("UTF-8");
+				if (dumpStream) {
+					os = new DumpFilterOutputStream(os, cs);
+					is = new DumpFilterInputStream(is, cs);
+				}
+				SocketStreams s = new SocketStreams(socket, os, is);
+				int c = activeSocketCount.incrementAndGet();
+				// プールする上限数に収まっていれば最近のタイムスタンプを保持しておく。
+				// プール上限数を超えた場合、このタイムスタンプより新しいソケットはrecycleでプールに戻されない。
+				if (c <= maxPoolSize) {
+					timestampLatelyPooled = s.timestamp;
+				}
+				if (logger.isInfoEnabled()) {
+					logger.info("Socket opened - {}:{} count:{}", endpoint.address.getHostName(), endpoint.port, c);
+				}
+				return s;
+			} catch (UnresolvedAddressException e) {
+				logger.error("Hostname cannot be resolved. {}", e.getMessage());
+				endpoint.offline = true;
+			} catch (IOException e) {
+				endpoint.offline = true;
 			}
-			return new SocketStreams(socket, os, is);
-		} catch (UnresolvedAddressException e) {
-			logger.error("Hostname cannot be resolved. {}", e.getMessage());
-			return null;
 		}
 	}
 	
@@ -113,7 +150,8 @@ public class SocketManager {
 			socket.getSocket().close();
 			int c = activeSocketCount.decrementAndGet();
 			if (logger.isInfoEnabled()) {
-				logger.info("Socket closed - count:" + c + " queue:" + queue.size());
+				Socket s = socket.getSocket();
+				logger.info("Socket closed - {}:{} count:{}", s.getInetAddress().getHostName(), s.getPort(), c);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -125,6 +163,12 @@ public class SocketManager {
 	private boolean isAvailable(SocketStreams socket) {
 		Socket s = socket.getSocket();
 		if (s.isInputShutdown() || s.isOutputShutdown() || s.isClosed()) {
+			for (Endpoint e: endpoints) {
+				if (e.address.equals(s.getInetAddress()) && e.port == s.getPort()) {
+					logger.info("Mark offline - {}:{}", s.getInetAddress().getHostName(), s.getPort());
+					e.offline = true;
+				}
+			}
 			return false;
 		}
 		return true;
@@ -133,11 +177,21 @@ public class SocketManager {
 	public void destroy(SocketStreams socket) {
 		if (socket == null)
 			return;
+		Socket s = socket.getSocket();
+		logger.info("Destroy connection - {}:{}", s.getInetAddress().getHostName(), s.getPort());
 		try {
 			socket.getOutputStream().close();
 			socket.getInputStream().close();
 		} catch (IOException e) {
 		}
+	}
+
+	public int getMaxPoolSize() {
+		return maxPoolSize;
+	}
+
+	public void setMaxPoolSize(int maxPoolSize) {
+		this.maxPoolSize = maxPoolSize;
 	}
 
 }

@@ -434,7 +434,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 0) {
-				throw new OperationFailedException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
 			String str = nextString(is, false);
 			if (str.equals("true")) {
@@ -490,7 +490,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				return true;
 			} else if (str.equals("false")){
 				String msg = nextString(is, false);				
-				logger.debug("setObjectValue failed. ", msg);
+				logger.debug("setObjectValue failed. {}", msg);
+				failed = false;
 				return false;
 			} else {
 				String msg = nextString(is, false);
@@ -522,7 +523,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 2) {
-				throw new OperationFailedException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
 			String str = nextString(is, false);
 			if (str.equals("true")) {
@@ -539,6 +540,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				/** falseの場合は第三列が文字列を返すときはエラーメッセージを例外としてスローし、空の時は値無しとしてnullを返す。 */
 				String msg = nextString(is, false);
 				if (msg != null && !msg.isEmpty()) {
+					failed = false;
 					throw new OperationFailedException(msg);
 				}
 				failed = false;
@@ -574,7 +576,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 5) {
-				throw new OperationFailedException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
 			String str = nextString(is, false);
 			if (str.equals("true")) {
@@ -591,6 +593,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				/** falseの場合は第三列が文字列を返すときはエラーメッセージを例外としてスローし、空の時は値無しとしてnullを返す。 */
 				String msg = nextString(is, false);
 				if (msg != null && !msg.isEmpty()) {
+					failed = true;
 					throw new OperationFailedException(msg);
 				}
 				failed = false;
@@ -646,7 +649,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				return true;
 			} else if (str.equals("false")){
 				String msg = nextString(is, false);				
-				logger.debug("addObjectValue failed. ", msg);
+				logger.debug("addObjectValue failed. {}", msg);
+				failed = false;
 				return false;
 			} else {
 				String msg = nextString(is, false);
@@ -737,15 +741,20 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 4) {
-				throw new OperationFailedException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
 			String str = nextString(is, false);
 			if (str.equals("true")) {
 				String[] strs = nextStringList(is, base64Key);
 				failed = false;
 				return strs;
+			} else if (str.equals("false")){
+				String msg = nextString(is, false);
+				failed = false;
+				throw new OperationFailedException(msg);
 			} else {
-				throw new OperationFailedException();
+				String msg = nextString(is, false);
+				throw new OperationFailedException(msg);
 			}
 		} finally {
 			if (failed) {
@@ -773,7 +782,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 15) {
-				throw new OperationFailedException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
 			String str = nextString(is, false);
 			if (str.equals("true")) {
@@ -791,6 +800,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				/** falseの場合は第三列が文字列を返すときはエラーメッセージを例外としてスローし、空の時は値無しとしてnullを返す。 */
 				String msg = nextString(is, false);
 				if (msg != null && !msg.isEmpty()) {
+					failed = false;
 					throw new OperationFailedException(msg);
 				}
 				failed = false;
@@ -837,7 +847,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 16) {
-				throw new OperationFailedException();
+				throw new OperationFailedException("Unexprected code:" + code);
 			}
 			String str = nextString(is, false);
 			if (str.equals("true")) {
@@ -846,8 +856,10 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			} else if (str.equals("false")){
 				String msg = nextString(is, false);
 				if (msg.equals("NG:Data has already been updated")) {
-					throw new KeyValueConsistencyException(msg);					
+					failed = false;
+					throw new KeyValueConsistencyException(msg);
 				}
+				failed = false;
 				throw new OperationFailedException(msg);
 			} else {
 				String msg = nextString(is, false);				
