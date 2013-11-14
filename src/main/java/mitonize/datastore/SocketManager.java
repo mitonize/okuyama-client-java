@@ -17,6 +17,7 @@ import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -30,19 +31,24 @@ public class SocketManager {
 	class Endpoint {
 		InetAddress address;
 		int port;
-		boolean online = true;
+		boolean offline = false;
 	}
 	Endpoint[] endpoints;
 	int currentEndpointIndex = 0;
 
-	protected ArrayBlockingQueue<SocketStreams> queue;
+	protected PriorityBlockingQueue<SocketStreams> queue;
 	protected AtomicInteger activeSocketCount;
 	private boolean dumpStream = false;
+	private int maxPoolSize = 0;
 
 	public SocketManager(String[] masternodes, int maxPoolSize) throws UnknownHostException {
-		queue = new ArrayBlockingQueue<SocketStreams>(maxPoolSize);
-		activeSocketCount = new AtomicInteger(0);
-		endpoints = new Endpoint[masternodes.length];
+		if (masternodes.length == 0) {
+			throw new IllegalStateException("No connection endpoint setting specified.");
+		}
+		this.queue = new PriorityBlockingQueue<SocketStreams>(maxPoolSize);
+		this.activeSocketCount = new AtomicInteger(0);
+		this.maxPoolSize = maxPoolSize;
+		this.endpoints = new Endpoint[masternodes.length];
 		for (int i = 0; i < masternodes.length; ++i) {
 			endpoints[i] = new Endpoint();
 			endpoints[i].address = InetAddress.getByName(masternodes[i].split(":")[0]);
@@ -71,38 +77,61 @@ public class SocketManager {
 		}
 	}
 
+	/**
+	 * 次のエンドポイント情報を取得する。
+	 * オフラインマークが付いているものはスキップする。登録されているすべてのエンドポイントにオフラインマークが付いていた場合はnullを返す。
+	 * @return オフラインでないエンドポイント情報。すべてオフラインの場合はnull
+	 */
+	Endpoint nextEndpoint() {
+		int count = endpoints.length;
+		int index = currentEndpointIndex;
+		while (count-- > 0) {
+			if (index >= endpoints.length)
+				index = 0;
+
+			Endpoint endpoint = endpoints[index];
+			if (endpoint == null)
+				throw new IllegalStateException("No connection endpoint setting specified.");
+			/** オフラインのマークが付いていたら次のものを検査 */
+			if (endpoint.offline) {
+				continue;
+			}
+			return endpoint;
+		}
+		return null;
+	}
+
 	@SuppressWarnings("resource")
 	SocketStreams openSocket() throws IOException {
-		if (endpoints.length == 0) {
-			throw new IllegalStateException("No connection endpoint setting specified.");
-		}
-		if (currentEndpointIndex >= endpoints.length)
-			currentEndpointIndex = 0;
-
-		Endpoint endpoint = endpoints[currentEndpointIndex];
-		if (endpoint == null)
-			throw new IllegalStateException("No connection endpoint setting specified.");
-
-		try {
-			InetSocketAddress address = new InetSocketAddress (endpoint.address, endpoint.port);
-			Socket socket = new Socket();
-			socket.setSoTimeout(2000);
-			socket.connect(address, 2000);
-			OutputStream os = new BufferedOutputStream(socket.getOutputStream());
-			InputStream is = new BufferedInputStream(socket.getInputStream());
-			Charset cs = Charset.forName("UTF-8");
-			if (dumpStream) {
-				os = new DumpFilterOutputStream(os, cs);
-				is = new DumpFilterInputStream(is, cs);
+		while (true) {
+			Endpoint endpoint = nextEndpoint();
+			if (endpoint == null) {
+				logger.error("No available endpoint to connect");
+				throw new IOException("No available endpoint to connect");
 			}
-			int c = activeSocketCount.incrementAndGet();
-			if (logger.isInfoEnabled()) {
-				logger.info("Socket opened - count:" + c + " queue:" + queue.size());
+			try {
+				InetSocketAddress address = new InetSocketAddress (endpoint.address, endpoint.port);
+				Socket socket = new Socket();
+				socket.setSoTimeout(2000);
+				socket.connect(address, 2000);
+				OutputStream os = new BufferedOutputStream(socket.getOutputStream());
+				InputStream is = new BufferedInputStream(socket.getInputStream());
+				Charset cs = Charset.forName("UTF-8");
+				if (dumpStream) {
+					os = new DumpFilterOutputStream(os, cs);
+					is = new DumpFilterInputStream(is, cs);
+				}
+				int c = activeSocketCount.incrementAndGet();
+				if (logger.isInfoEnabled()) {
+					logger.info("Socket opened - {}:{} count:{}", endpoint.address.getHostName(), endpoint.port, c);
+				}
+				return new SocketStreams(socket, os, is);
+			} catch (UnresolvedAddressException e) {
+				logger.error("Hostname cannot be resolved. {}", e.getMessage());
+				endpoint.offline = true;
+			} catch (IOException e) {
+				endpoint.offline = true;
 			}
-			return new SocketStreams(socket, os, is);
-		} catch (UnresolvedAddressException e) {
-			logger.error("Hostname cannot be resolved. {}", e.getMessage());
-			return null;
 		}
 	}
 	
@@ -113,7 +142,8 @@ public class SocketManager {
 			socket.getSocket().close();
 			int c = activeSocketCount.decrementAndGet();
 			if (logger.isInfoEnabled()) {
-				logger.info("Socket closed - count:" + c + " queue:" + queue.size());
+				Socket s = socket.getSocket();
+				logger.info("Socket closed - {}:{} count:{}", s.getInetAddress().getHostName(), s.getPort(), c);
 			}
 		} catch (IOException e) {
 			e.printStackTrace();
@@ -125,6 +155,12 @@ public class SocketManager {
 	private boolean isAvailable(SocketStreams socket) {
 		Socket s = socket.getSocket();
 		if (s.isInputShutdown() || s.isOutputShutdown() || s.isClosed()) {
+			for (Endpoint e: endpoints) {
+				if (e.address.equals(s.getInetAddress()) && e.port == s.getPort()) {
+					logger.info("Mark offline - {}:{}", s.getInetAddress().getHostName(), s.getPort());
+					e.offline = true;
+				}
+			}
 			return false;
 		}
 		return true;
@@ -138,6 +174,14 @@ public class SocketManager {
 			socket.getInputStream().close();
 		} catch (IOException e) {
 		}
+	}
+
+	public int getMaxPoolSize() {
+		return maxPoolSize;
+	}
+
+	public void setMaxPoolSize(int maxPoolSize) {
+		this.maxPoolSize = maxPoolSize;
 	}
 
 }
