@@ -17,7 +17,6 @@ import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.util.concurrent.ArrayBlockingQueue;
-import java.util.concurrent.PriorityBlockingQueue;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -34,10 +33,11 @@ public class SocketManager {
 		boolean offline = false;
 	}
 	Endpoint[] endpoints;
-	int currentEndpointIndex = 0;
+	long timestampLatelyPooled = 0;
 
-	protected PriorityBlockingQueue<SocketStreams> queue;
+	protected ArrayBlockingQueue<SocketStreams> queue;
 	protected AtomicInteger activeSocketCount;
+	protected AtomicInteger currentEndpointIndex;
 	private boolean dumpStream = false;
 	private int maxPoolSize = 0;
 
@@ -45,8 +45,9 @@ public class SocketManager {
 		if (masternodes.length == 0) {
 			throw new IllegalStateException("No connection endpoint setting specified.");
 		}
-		this.queue = new PriorityBlockingQueue<SocketStreams>(maxPoolSize);
+		this.queue = new ArrayBlockingQueue<SocketStreams>(maxPoolSize);
 		this.activeSocketCount = new AtomicInteger(0);
+		this.currentEndpointIndex = new AtomicInteger(0);
 		this.maxPoolSize = maxPoolSize;
 		this.endpoints = new Endpoint[masternodes.length];
 		for (int i = 0; i < masternodes.length; ++i) {
@@ -72,7 +73,9 @@ public class SocketManager {
 	public void recycle(SocketStreams socket) {
 		if (socket == null)
 			return;
-		if (!isAvailable(socket) || !queue.offer(socket)) {
+		if (socket.timestamp > timestampLatelyPooled
+				|| !isAvailable(socket)
+				|| !queue.offer(socket)) {
 			closeSocket(socket);
 		}
 	}
@@ -84,19 +87,18 @@ public class SocketManager {
 	 */
 	Endpoint nextEndpoint() {
 		int count = endpoints.length;
-		int index = currentEndpointIndex;
+		int index = currentEndpointIndex.getAndSet(currentEndpointIndex.incrementAndGet() % count);
 		while (count-- > 0) {
 			if (index >= endpoints.length)
 				index = 0;
 
-			Endpoint endpoint = endpoints[index];
+			Endpoint endpoint = endpoints[index++];
 			if (endpoint == null)
 				throw new IllegalStateException("No connection endpoint setting specified.");
-			/** オフラインのマークが付いていたら次のものを検査 */
-			if (endpoint.offline) {
-				continue;
+			/** オフラインのマークが付いていないならこれを返す */
+			if (!endpoint.offline) {
+				return endpoint;
 			}
-			return endpoint;
 		}
 		return null;
 	}
@@ -121,11 +123,17 @@ public class SocketManager {
 					os = new DumpFilterOutputStream(os, cs);
 					is = new DumpFilterInputStream(is, cs);
 				}
+				SocketStreams s = new SocketStreams(socket, os, is);
 				int c = activeSocketCount.incrementAndGet();
+				// プールする上限数に収まっていれば最近のタイムスタンプを保持しておく。
+				// プール上限数を超えた場合、このタイムスタンプより新しいソケットはrecycleでプールに戻されない。
+				if (c <= maxPoolSize) {
+					timestampLatelyPooled = s.timestamp;
+				}
 				if (logger.isInfoEnabled()) {
 					logger.info("Socket opened - {}:{} count:{}", endpoint.address.getHostName(), endpoint.port, c);
 				}
-				return new SocketStreams(socket, os, is);
+				return s;
 			} catch (UnresolvedAddressException e) {
 				logger.error("Hostname cannot be resolved. {}", e.getMessage());
 				endpoint.offline = true;
@@ -169,6 +177,8 @@ public class SocketManager {
 	public void destroy(SocketStreams socket) {
 		if (socket == null)
 			return;
+		Socket s = socket.getSocket();
+		logger.info("Destroy connection - {}:{}", s.getInetAddress().getHostName(), s.getPort());
 		try {
 			socket.getOutputStream().close();
 			socket.getInputStream().close();
