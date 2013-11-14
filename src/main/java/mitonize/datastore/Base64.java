@@ -126,9 +126,9 @@ public class Base64 {
 				    b.put(b2);
 				}
 			} else if (bc == 4) {
-                byte b2 = (byte) ((bits[2] << 6) | bits[3]);
-                b.put(b2);
-            }
+				byte b2 = (byte) ((bits[2] << 6) | bits[3]);
+				b.put(b2);
+			}
 		}
 		buffer.reset();
 		b.flip();
