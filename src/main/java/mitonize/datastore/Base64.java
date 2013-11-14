@@ -70,9 +70,9 @@ public class Base64 {
 //			System.err.printf("B:%8s %8s %8s %8s\n", Integer.toBinaryString(i0), Integer.toBinaryString(i1), Integer.toBinaryString(i2), Integer.toBinaryString(i3));
 
 			byte b0 = map_encode[i0];
-			byte b1 = map_encode[i1];
-			byte b2 = bc > 1 ? map_encode[i2]: (byte)'=';
-			byte b3 = bc > 2 ? map_encode[i3]: (byte)'=';
+			byte b1 = bc >= 1 ? map_encode[i1]: (byte)'=';
+			byte b2 = bc >= 2 ? map_encode[i2]: (byte)'=';
+			byte b3 = bc >= 3 ? map_encode[i3]: (byte)'=';
 			b.put(b0).put(b1).put(b2).put(b3);
 		}
 		buffer.reset();
@@ -83,9 +83,15 @@ public class Base64 {
 	public static ByteBuffer decodeBuffer(ByteBuffer buffer) {
 		buffer.mark();
 		int limit = buffer.remaining();
-		ByteBuffer b = ByteBuffer.allocate((limit / 4 + (limit % 4 == 0 ? 0: 1)) * 3);
+		int blocks = limit / 4 + (limit % 4 == 0 ? 0: 1);
+		ByteBuffer b = ByteBuffer.allocate(blocks * 3);
 		byte[] bits = new byte[4];
-		for (int i=0; i < limit; ++i) {
+
+		/* 
+		 * バッファの末尾に余分に確保されたバイトをlimitを調節して詰める。つまりallocateした領域自体は詰めない。
+		 * したがって、受け取り側で array()をしたときは注意のこと。
+		 */
+        for (int i=0; i < blocks; ++i) {
 			bits[0] = bits[1] = bits[2] = bits[3] = 0;
 			int bc = 0;
 			// 4バイト読み込んで3バイトにデコード
@@ -114,10 +120,15 @@ public class Base64 {
 				byte b1 = (byte) ((bits[1] << 4) | (bits[2] >>> 2) & 0x0f);
 				b.put(b1);
 			}
-			if (bc >= 3) {
-				byte b2 = (byte) ((bits[2] << 6) | (bits[3]));
-				b.put(b2);
-			}
+			if (bc == 3) {
+				byte b2 = (byte) (bits[2] << 6);
+				if (b2 != 0) {
+				    b.put(b2);
+				}
+			} else if (bc == 4) {
+                byte b2 = (byte) ((bits[2] << 6) | bits[3]);
+                b.put(b2);
+            }
 		}
 		buffer.reset();
 		b.flip();
