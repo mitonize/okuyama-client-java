@@ -27,7 +27,7 @@ public class OkuyamaClientTest {
 	
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
-		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"}, 5);
+		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888", "127.0.0.1:8889"}, 5);
 	}
 
 	@Test

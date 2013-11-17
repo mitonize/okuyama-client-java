@@ -17,6 +17,10 @@ import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
 import java.nio.charset.CharsetDecoder;
 import java.util.concurrent.ArrayBlockingQueue;
+import java.util.concurrent.Executors;
+import java.util.concurrent.ScheduledExecutorService;
+import java.util.concurrent.ScheduledFuture;
+import java.util.concurrent.TimeUnit;
 import java.util.concurrent.atomic.AtomicInteger;
 
 import org.slf4j.Logger;
@@ -28,16 +32,50 @@ public class SocketManager {
 	 * 接続先のTCPエンドポイントを保持
 	 */
 	class Endpoint {
-		InetAddress address;
-		int port;
-		boolean offline = false;
+		public Endpoint(InetAddress address, int port) {
+			this.address = address;
+			this.port = port;
+		}
+		final InetAddress address;
+		final int port;
+		private boolean offline = false;
+		/** for canceling on being online */
+		ScheduledFuture<Object> offlineManagementFuture;
+		
+		/**
+		 * 指定したエンドポイントのオフライン状態を設定する。
+		 * @param endpoint エンドポイント
+		 * @param offline オフラインかどうか (true:オフライン、false:オンライン)
+		 */
+		@SuppressWarnings("unchecked")
+		synchronized void markEndpointOffline(boolean offline) {
+			if (offline) {
+				if (!this.offline) {
+					OfflineManagementTask task = new OfflineManagementTask(this);
+					this.offlineManagementFuture = 
+							(ScheduledFuture<Object>) offlineManagementService.scheduleWithFixedDelay(task, 0, 5, TimeUnit.SECONDS);
+					this.offline = true;
+					logger.warn("Mark offline - {}:{}", this.address.getHostName(), this.port);
+				}
+			} else {
+				ScheduledFuture<Object> future = this.offlineManagementFuture;
+				if (future != null) {
+					future.cancel(true);
+					this.offlineManagementFuture = null;
+				}
+				this.offline = false;
+				logger.warn("Mark online  - {}:{}", this.address.getHostName(), this.port);
+			}
+		}
 	}
 	Endpoint[] endpoints;
 	long timestampLatelyPooled = 0;
 
-	protected ArrayBlockingQueue<SocketStreams> queue;
-	protected AtomicInteger activeSocketCount;
-	protected AtomicInteger currentEndpointIndex;
+	final ScheduledExecutorService offlineManagementService;
+
+	final protected ArrayBlockingQueue<SocketStreams> queue;
+	final protected AtomicInteger activeSocketCount;
+	final protected AtomicInteger currentEndpointIndex;
 	private boolean dumpStream = false;
 	private int maxPoolSize = 0;
 
@@ -45,15 +83,23 @@ public class SocketManager {
 		if (masternodes.length == 0) {
 			throw new IllegalStateException("No connection endpoint setting specified.");
 		}
+		this.offlineManagementService = Executors.newSingleThreadScheduledExecutor();
 		this.queue = new ArrayBlockingQueue<SocketStreams>(maxPoolSize);
 		this.activeSocketCount = new AtomicInteger(0);
 		this.currentEndpointIndex = new AtomicInteger(0);
 		this.maxPoolSize = maxPoolSize;
 		this.endpoints = new Endpoint[masternodes.length];
 		for (int i = 0; i < masternodes.length; ++i) {
-			endpoints[i] = new Endpoint();
-			endpoints[i].address = InetAddress.getByName(masternodes[i].split(":")[0]);
-			endpoints[i].port = Short.parseShort(masternodes[i].split(":")[1]);
+			String hostname = masternodes[i].split(":")[0];
+			int port = Integer.parseInt(masternodes[i].split(":")[1]); // May throws NumberFormatException
+			
+			if (!hostname.matches("[\\d\\w.]+")) {
+				throw new IllegalArgumentException("hostname contains illegal character. " + hostname);
+			}
+			if (port < 0 || port > 65535) {
+				throw new IllegalArgumentException("port number must in range 0 to 65535. " + port);
+			}			
+			endpoints[i] = new Endpoint(InetAddress.getByName(hostname), port);
 		}
 	}
 	
@@ -79,11 +125,45 @@ public class SocketManager {
 			closeSocket(socket);
 		}
 	}
+	
+	/**
+	 * オフラインとマークされたエンドポイントを定期的にチェックして復帰していればオフラインとしてマークする。
+	 */
+	class OfflineManagementTask implements Runnable {
+		private Endpoint endpoint;
+		public OfflineManagementTask(Endpoint endpoint) {
+			this.endpoint = endpoint;
+		}
+		@Override
+		public void run() {
+			InetSocketAddress address = new InetSocketAddress(endpoint.address, endpoint.port);
+			Socket socket = new Socket();
+			try {
+				// 接続に成功したらオフラインマークをクリアする。
+				socket.connect(address, 1000);
+				endpoint.markEndpointOffline(false);
+			} catch (IOException e) {
+			} finally {
+				try {
+					socket.close();
+				} catch (IOException e) {
+				}
+			}
+		}
+	}
+
+	/**
+	 * 指定したインデックスのエンドポイント情報を取得する。
+	 * @return エンドポイント情報。
+	 */
+	Endpoint getEndpointAt(int i) {
+		return endpoints[i];
+	}
 
 	/**
 	 * 次のエンドポイント情報を取得する。
-	 * オフラインマークが付いているものはスキップする。登録されているすべてのエンドポイントにオフラインマークが付いていた場合はnullを返す。
-	 * @return オフラインでないエンドポイント情報。すべてオフラインの場合はnull
+	 * オフラインマークが付いているものはスキップする。登録されているすべてのエンドポイントにオフラインマークが付いていた場合は1番目の要素を返す。
+	 * @return オフラインでないエンドポイント情報。すべてオフラインの場合は1番目の要素を返す。
 	 */
 	Endpoint nextEndpoint() {
 		int count = endpoints.length;
@@ -100,9 +180,21 @@ public class SocketManager {
 				return endpoint;
 			}
 		}
-		return null;
+		return endpoints[0];
 	}
-
+	
+	/**
+	 * 指定したソケットに関連づいているエンドポイントのオフライン状態を設定する。
+	 * @param socket ソケットオブジェクト
+	 * @param offline オフラインかどうか (true:オフライン、false:オンライン)
+	 */
+	void markEndpointOffline(Socket socket, boolean offline) {
+		for (Endpoint e: endpoints) {
+			if (e.address.equals(socket.getInetAddress()) && e.port == socket.getPort()) {
+				e.markEndpointOffline(offline);
+			}
+		}
+	}
 	@SuppressWarnings("resource")
 	SocketStreams openSocket() throws IOException {
 		while (true) {
@@ -135,10 +227,11 @@ public class SocketManager {
 				}
 				return s;
 			} catch (UnresolvedAddressException e) {
-				logger.error("Hostname cannot be resolved. {}", e.getMessage());
-				endpoint.offline = true;
+				endpoint.markEndpointOffline(true);
+				logger.error("Hostname cannot be resolved. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
 			} catch (IOException e) {
-				endpoint.offline = true;
+				endpoint.markEndpointOffline(true);
+				logger.error("IOException is thrown. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
 			}
 		}
 	}
@@ -160,28 +253,29 @@ public class SocketManager {
 		}
 	}
 
-	private boolean isAvailable(SocketStreams socket) {
-		Socket s = socket.getSocket();
+	private boolean isAvailable(SocketStreams streams) {
+		Socket s = streams.getSocket();
 		if (s.isInputShutdown() || s.isOutputShutdown() || s.isClosed()) {
-			for (Endpoint e: endpoints) {
-				if (e.address.equals(s.getInetAddress()) && e.port == s.getPort()) {
-					logger.info("Mark offline - {}:{}", s.getInetAddress().getHostName(), s.getPort());
-					e.offline = true;
-				}
+			try {
+				s.close();
+			} catch (IOException e) {
+			} finally {
+				markEndpointOffline(s, true);				
 			}
 			return false;
 		}
 		return true;
 	}
 
-	public void destroy(SocketStreams socket) {
-		if (socket == null)
+	public void destroy(SocketStreams streams) {
+		if (streams == null)
 			return;
-		Socket s = socket.getSocket();
+		Socket s = streams.getSocket();
 		logger.info("Destroy connection - {}:{}", s.getInetAddress().getHostName(), s.getPort());
 		try {
-			socket.getOutputStream().close();
-			socket.getInputStream().close();
+			streams.getOutputStream().close();
+			streams.getInputStream().close();
+			streams.getSocket().close();
 		} catch (IOException e) {
 		}
 	}
@@ -189,11 +283,6 @@ public class SocketManager {
 	public int getMaxPoolSize() {
 		return maxPoolSize;
 	}
-
-	public void setMaxPoolSize(int maxPoolSize) {
-		this.maxPoolSize = maxPoolSize;
-	}
-
 }
 
 class DumpFilterOutputStream extends FilterOutputStream {
