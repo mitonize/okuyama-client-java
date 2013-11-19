@@ -111,23 +111,52 @@ public class Base64 {
 
 			// Base64デコーディング処理を行う
 			// 変換前： 00aaaaaa 00aabbbb 00bbbbcc 00cccccc
+            // 変換前： 00aaaaaa 00aabbbb 00bbbbcc     =
+            // 変換前： 00aaaaaa 00aabbbb     =        =
+            // 変換前： 00aaaaaa     =        =        =
 			// 変換後： aaaaaaaa bbbbbbbb cccccccc
-			if (bc >= 1) {
-				byte b0 = (byte) ((bits[0] << 2) | (bits[1] >>> 4) & 0x03);
-				b.put(b0);
+			switch (bc) {
+			case 1:
+			{
+                byte b0 = (byte) (bits[0] << 2);
+                b.put(b0);
+                break;
 			}
-			if (bc >= 2) {
-				byte b1 = (byte) ((bits[1] << 4) | (bits[2] >>> 2) & 0x0f);
-				b.put(b1);
+			case 2:
+			{
+                byte b0 = (byte) ((bits[0] << 2) | (bits[1] >>> 4) & 0x03);
+                b.put(b0);
+                byte b1 = (byte) (bits[1] << 4);
+                if (b1 != 0) {
+                    b1 = (byte) (b1 | (bits[2] >>> 2) & 0x0f);
+                    b.put(b1);
+                }
+                break;		    
 			}
-			if (bc == 3) {
-				byte b2 = (byte) (bits[2] << 6);
-				if (b2 != 0) {
-				    b.put(b2);
-				}
-			} else if (bc == 4) {
-				byte b2 = (byte) ((bits[2] << 6) | bits[3]);
-				b.put(b2);
+			case 3:
+			{
+                byte b0 = (byte) ((bits[0] << 2) | (bits[1] >>> 4) & 0x03);
+                b.put(b0);
+                byte b1 = (byte) ((bits[1] << 4) | (bits[2] >>> 2) & 0x0f);
+                b.put(b1);
+                byte b2 = (byte) (bits[2] << 6);
+                if (b2 != 0) {
+                    b.put(b2);
+                }
+                break;          
+			}
+			case 4:
+			{
+                byte b0 = (byte) ((bits[0] << 2) | (bits[1] >>> 4) & 0x03);
+                b.put(b0);
+                byte b1 = (byte) ((bits[1] << 4) | (bits[2] >>> 2) & 0x0f);
+                b.put(b1);
+                byte b2 = (byte) ((bits[2] << 6) | bits[3]);
+                b.put(b2);
+                break;          
+			}
+			default:
+			    break;
 			}
 		}
 		buffer.reset();
