@@ -141,8 +141,10 @@ public class SocketManager {
 			try {
 				// 接続に成功したらオフラインマークをクリアする。
 				socket.connect(address, 1000);
+				Thread.sleep(5000);
 				endpoint.markEndpointOffline(false);
 			} catch (IOException e) {
+			} catch (InterruptedException e) {
 			} finally {
 				try {
 					socket.close();
@@ -227,11 +229,11 @@ public class SocketManager {
 				}
 				return s;
 			} catch (UnresolvedAddressException e) {
-				endpoint.markEndpointOffline(true);
 				logger.error("Hostname cannot be resolved. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
-			} catch (IOException e) {
 				endpoint.markEndpointOffline(true);
+			} catch (IOException e) {
 				logger.error("IOException is thrown. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
+				endpoint.markEndpointOffline(true);
 			}
 		}
 	}
