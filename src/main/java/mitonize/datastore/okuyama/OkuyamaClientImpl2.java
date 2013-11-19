@@ -418,9 +418,20 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			return cs.decode(ByteBuffer.wrap(b)).toString();
 		}	
 	}
-	
+
 	@Override
 	public long initClient() throws IOException, OperationFailedException {
+		try {
+			return _initClient();
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _initClient();
+		}
+	}
+
+	long _initClient() throws IOException, OperationFailedException {
 		SocketStreams socket = null;
 		boolean failed = true;
 		try	{
@@ -451,9 +462,22 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		}
 	}
 
-
 	@Override
 	public boolean setObjectValue(String key, Object value, String[] tags, long age) throws IOException, OperationFailedException {
+//		long st = System.currentTimeMillis();
+		try {
+			return _setObjectValue(key, value, tags, age);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _setObjectValue(key, value, tags, age);
+		} finally {
+//			logger.debug("set:{}ms", System.currentTimeMillis() - st);
+		}
+	}
+
+	boolean _setObjectValue(String key, Object value, String[] tags, long age) throws IOException, OperationFailedException {
 		if (value == null) {
 			throw new IllegalArgumentException("Okuyama does not allow to store null value.");
 		}
@@ -502,11 +526,25 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				socketManager.destroy(socket);
 			}
 			socketManager.recycle(socket);
-		}		
+		}
 	}
 
 	@Override
 	public Object getObjectValue(String key) throws IOException, OperationFailedException {
+//		long st = System.currentTimeMillis();
+		try {
+			return _getObjectValue(key);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _getObjectValue(key);
+		} finally {
+//			logger.debug("get:{}ms", System.currentTimeMillis() - st);
+		}
+	}
+
+	Object _getObjectValue(String key) throws IOException, OperationFailedException {
 		validateKey(key);
 		SocketStreams socket = null;
 		boolean failed = true;
@@ -559,6 +597,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public Object removeObjectValue(String key) throws IOException, OperationFailedException {
+		try {
+			return _removeObjectValue(key);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _removeObjectValue(key);
+		}
+	}
+
+	Object _removeObjectValue(String key) throws IOException, OperationFailedException {
 		validateKey(key);
 		SocketStreams socket = null;
 		boolean failed = true;
@@ -613,6 +662,18 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	@Override
 	public boolean addObjectValue(String key, Object value, String[] tags,
 			long age) throws IOException, OperationFailedException {
+		try {
+			return _addObjectValue(key, value, tags, age);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _addObjectValue(key, value, tags, age);
+		}
+	}
+
+	boolean _addObjectValue(String key, Object value, String[] tags,
+			long age) throws IOException, OperationFailedException {
 		if (value == null) {
 			throw new IllegalArgumentException("Okuyama does not allow to store null value.");
 		}
@@ -666,6 +727,18 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public Object[] getMultiObjectValues(String... keys) throws IOException,
+			OperationFailedException {
+		try {
+			return _getMultiObjectValues(keys);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _getMultiObjectValues(keys);
+		}
+	}
+
+	Object[] _getMultiObjectValues(String... keys) throws IOException,
 			OperationFailedException {
 		for (String key: keys) {
 			validateKey(key);
@@ -725,6 +798,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public String[] getTagKeys(String tag, boolean withDeletedKeys) throws IOException, OperationFailedException {
+		try {
+			return _getTagKeys(tag, withDeletedKeys);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _getTagKeys(tag, withDeletedKeys);
+		}
+	}
+
+	String[] _getTagKeys(String tag, boolean withDeletedKeys) throws IOException, OperationFailedException {
 		SocketStreams socket = null;
 		boolean failed = true;
 		try	{
@@ -766,6 +850,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public VersionedValue getObjectValueVersionCheck(String key) throws IOException, OperationFailedException {
+		try {
+			return _getObjectValueVersionCheck(key);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _getObjectValueVersionCheck(key);
+		}
+	}
+
+	VersionedValue _getObjectValueVersionCheck(String key) throws IOException, OperationFailedException {
 		validateKey(key);
 		SocketStreams socket = null;
 		boolean failed = true;
@@ -819,6 +914,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public boolean setObjectValueVersionCheck(String key, Object value, String version, String[] tags, long age) throws IOException, OperationFailedException {
+		try {
+			return _setObjectValueVersionCheck(key, value, version, tags, age);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _setObjectValueVersionCheck(key, value, version, tags, age);
+		}
+	}
+
+	boolean _setObjectValueVersionCheck(String key, Object value, String version, String[] tags, long age) throws IOException, OperationFailedException {
 		if (value == null) {
 			throw new IllegalArgumentException("Okuyama does not allow to store null value.");
 		}
@@ -875,6 +981,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	@Override
 	public Pair[] getPairsByTag(String tag) throws IOException, OperationFailedException {
+		try {
+			return _getPairsByTag(tag);
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _getPairsByTag(tag);
+		}
+	}
+
+	Pair[] _getPairsByTag(String tag) throws IOException, OperationFailedException {
 		SocketStreams socket = null;
 		boolean failed = true;
 		try	{
