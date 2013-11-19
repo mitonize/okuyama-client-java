@@ -27,7 +27,7 @@ public class OkuyamaClientTest {
 	
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
-		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"}, 5);
+		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888", "127.0.0.1:8889"}, 5);
 	}
 
 	@Test
@@ -78,7 +78,7 @@ public class OkuyamaClientTest {
 	}
 
 	@Test
-	public void test1_4() throws IOException, OperationFailedException {
+	public void test1_4_largedata() throws IOException, OperationFailedException {
 		OkuyamaClient client = factory.createClient();
 
 		long maxlength = client.initClient();
@@ -92,6 +92,20 @@ public class OkuyamaClientTest {
 		assertFalse(ret);
 	}
 
+	@Test
+	public void test1_4_largedata64k() throws IOException, OperationFailedException {
+		OkuyamaClient client = factory.createClient();
+
+		int size = (int) 65536;
+		// 55005 OK                    2170528
+		// 55006 NG:Max Data Size Over 2170532
+		// 55021 Value Length Error    2170556
+		byte[] verylargevalue = new byte[size];
+		Arrays.fill(verylargevalue, (byte)'a');
+		boolean ret = client.setObjectValue("HOGE2_0", verylargevalue, null, 0);
+		assertTrue(ret);
+	}
+	
 	@Test
 	public void test1_5_expire() throws IOException, OperationFailedException, InterruptedException {
 		OkuyamaClient client = factory.createClient();
@@ -147,11 +161,12 @@ public class OkuyamaClientTest {
 					}
 					Thread.sleep(1);
 				} catch (IOException e) {
-					System.out.println(e.getMessage());
+					System.err.println("ERROR IOException:" + e.getMessage());
+					break;
 				} catch (OperationFailedException e) {
-					System.out.println(e.getMessage());
+					System.err.println("ERROR OperationFaildException:" + e.getMessage());
 				} catch (InterruptedException e) {
-					System.out.println(e.getMessage());
+					System.err.println("ERROR InterruptedException:" + e.getMessage());
 				}
 			}
 			System.out.println("done:" + Thread.currentThread().getName());
@@ -159,7 +174,7 @@ public class OkuyamaClientTest {
 	}
 
 	@Test
-	@Ignore
+	//@Ignore
 	public void test1_7_multithread() throws IOException, OperationFailedException, InterruptedException {
 		ArrayList<Thread> threads = new ArrayList<>();
 		for (int i = 0; i < 6; ++i) {
