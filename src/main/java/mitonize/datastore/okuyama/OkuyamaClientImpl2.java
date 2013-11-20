@@ -369,8 +369,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 						if (isNullString(bytes)) {
 							return null;
 						}
-						byte[] b = Base64.decodeBuffer(bytes).array();
-						return decodeObject(b);
+						ByteBuffer raw = Base64.decodeBuffer(bytes);
+						return decodeObject(raw.array(), raw.position(), raw.limit() - raw.position());
 					} else {
 						bytes.put(ch);
 					}
@@ -395,12 +395,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * バイト列からJavaオブジェクトを復元する。バイト列がシリアライズされた列であれば
 	 * デシリアライズする。シリアライズされたバイト列でなければ文字列オブジェクトとして返す。
 	 * @param b バイト配列
+	 * @param length 
+	 * @param offset 
 	 * @return デコードしたオブジェクト
 	 * @throws IOException 通信に何らかのエラーが発生した場合
 	 * @throws ClassNotFoundException  
 	 */
-	Object decodeObject(byte[] b) throws IOException, ClassNotFoundException {
-		if (b.length == 0) {
+	Object decodeObject(byte[] b, int offset, int length) throws IOException, ClassNotFoundException {
+		if (b.length == 0 || length == 0) {
 			return null;
 		}
 
@@ -410,7 +412,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		 * @see http://docs.oracle.com/javase/6/docs/platform/serialization/spec/protocol.html
 		 */
 		if (b.length > 2 && b[0] == (byte) 0xac && b[1] == (byte) 0xed) { // Magic code of Object Serialization Stream Protocol
-			ObjectInputStream os = new ObjectInputStream(new ByteArrayInputStream(b));
+			ObjectInputStream os = new ObjectInputStream(new ByteArrayInputStream(b, offset, length));
 			Object obj = os.readObject();
 			return obj;
 		} else {
