@@ -25,7 +25,7 @@ dependencies {
 	testRuntime fileTree(dir: "$originalDistribution/lib", include: '*.jar')	
 }
 
-version = '1.0.2'
+version = '1.0.3'
 jar {
     manifest {
         attributes 'Implementation-Title': 'Okuyama Client', 'Implementation-Version': version
