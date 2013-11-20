@@ -369,7 +369,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 						if (isNullString(bytes)) {
 							return null;
 						}
-						byte[] b = Base64.decodeBuffer(bytes).array();
+						byte[] b = createFlipedBytes(Base64.decodeBuffer(bytes));
 						return decodeObject(b);
 					} else {
 						bytes.put(ch);
@@ -389,6 +389,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			}
 			buffer.flip();
 		}
+	}
+	
+	/**
+	 * ByteBuffer内のlimitまでのbyteを生成する
+	 * @param buffer
+	 * @return ByteBuffer内のlimitまでのbyte
+	 */
+	static byte[] createFlipedBytes(ByteBuffer buffer){
+		byte[] bytes = new byte[buffer.limit()];
+		buffer.get(bytes);
+		return bytes;
 	}
 	
 	/**
