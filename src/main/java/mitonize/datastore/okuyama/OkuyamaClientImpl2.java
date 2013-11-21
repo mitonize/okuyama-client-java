@@ -417,7 +417,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			return obj;
 		} else {
 			/** シリアル化されて以内バイト列は文字列として復元 **/
-			return cs.decode(ByteBuffer.wrap(b)).toString();
+			return cs.decode(ByteBuffer.wrap(b, offset, length)).toString();
 		}	
 	}
 
