@@ -199,11 +199,12 @@ public class SocketManager {
 	}
 	@SuppressWarnings("resource")
 	SocketStreams openSocket() throws IOException {
-		while (true) {
-			Endpoint endpoint = nextEndpoint();
-			if (endpoint == null) {
-				logger.error("No available endpoint to connect");
-				throw new IOException("No available endpoint to connect");
+		Endpoint lastAttempt = null;
+		for (int i=endpoints.length; i >= 0; --i) {
+			Endpoint endpoint = nextEndpoint(); // nextEndpoint() never returns null.
+			if (endpoint.equals(lastAttempt)) {
+				// 一連の接続試行の最後に試したエンドポイントと今回取得したエンドポイントが同じなら失敗させる。
+				break;
 			}
 			try {
 				InetSocketAddress address = new InetSocketAddress (endpoint.address, endpoint.port);
@@ -232,10 +233,13 @@ public class SocketManager {
 				logger.error("Hostname cannot be resolved. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
 				endpoint.markEndpointOffline(true);
 			} catch (IOException e) {
-				logger.error("IOException is thrown. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
+				logger.error("Failed to open socket. {}:{} {}", endpoint.address.getHostName(), endpoint.port, e.getMessage());
 				endpoint.markEndpointOffline(true);
 			}
+			lastAttempt = endpoint;
 		}
+		logger.error("No available endpoint to connect");
+		throw new IOException("No available endpoint to connect");
 	}
 	
 	void closeSocket(SocketStreams socket) {
