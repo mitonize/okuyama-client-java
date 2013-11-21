@@ -176,7 +176,7 @@ public class OkuyamaClientTest {
 	@Test
 	//@Ignore
 	public void test1_7_multithread() throws IOException, OperationFailedException, InterruptedException {
-		ArrayList<Thread> threads = new ArrayList<>();
+		ArrayList<Thread> threads = new ArrayList<Thread>();
 		for (int i = 0; i < 6; ++i) {
 			Thread thread = new Thread(new Load("key" + i));
 			threads.add(thread);
