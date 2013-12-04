@@ -146,10 +146,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		stream.writeObject(obj);
 		stream.close();
 
-		byte[] b = baos.toByteArray();	
-		ByteBuffer buf = Base64.encodeBuffer(ByteBuffer.wrap(b));
+		byte[] serialized = baos.toByteArray();
+		ByteBuffer b = ByteBuffer.wrap(serialized);
+
+		ByteBuffer buf = Base64.encodeBuffer(b);
 		os.write(VALUE_SEPARATOR);
-		os.write(buf.array(), 0, buf.limit());
+		os.write(buf.array(), buf.position(), buf.limit() - buf.position());
 	}
 
 	/**
@@ -402,7 +404,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @throws ClassNotFoundException  
 	 */
 	Object decodeObject(byte[] b, int offset, int length) throws IOException, ClassNotFoundException {
-		if (b.length == 0 || length == 0) {
+		if (b.length == 0 || length == 0 || b.length < offset + length) {
 			return null;
 		}
 
@@ -411,7 +413,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		 * JavaSEの仕様(Object Serialization Stream Protocol)である。
 		 * @see http://docs.oracle.com/javase/6/docs/platform/serialization/spec/protocol.html
 		 */
-		if (b.length > 2 && b[0] == (byte) 0xac && b[1] == (byte) 0xed) { // Magic code of Object Serialization Stream Protocol
+		if (length >= 2 && b[offset] == (byte) 0xac && b[offset+1] == (byte) 0xed) { // Magic code of Object Serialization Stream Protocol
 			ObjectInputStream os = new ObjectInputStream(new ByteArrayInputStream(b, offset, length));
 			Object obj = os.readObject();
 			return obj;
