@@ -9,11 +9,12 @@ import mitonize.datastore.TextDumpFilterStreamFactory;
 public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 	SocketManager socketManager;
 	boolean compatibilityMode = true;
+	boolean compressionMode = false;
 
 	@Override
 	public OkuyamaClient createClient() {
 		OkuyamaClient okuyamaClient;
-		okuyamaClient = new OkuyamaClientImpl2(socketManager, true, compatibilityMode);
+		okuyamaClient = new OkuyamaClientImpl2(socketManager, true, compatibilityMode, compressionMode);
 		return okuyamaClient;
 	}
 
@@ -42,6 +43,14 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 
 	public void setCompatibilityMode(boolean compatibilityMode) {
 		this.compatibilityMode = compatibilityMode;
+	}
+
+	public boolean isCompressionMode() {
+		return compressionMode;
+	}
+
+	public void setComressionMode(boolean doCompress) {
+		this.compressionMode = doCompress;		
 	}
 
 }

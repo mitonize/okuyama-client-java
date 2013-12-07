@@ -35,6 +35,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	boolean serializeString = false;
 	ByteBuffer buffer;
 
+	private boolean doCompress = true;
+
 	/**
 	 * OkuyamaClient インスタンスを生成する。
 	 * 
@@ -42,12 +44,13 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64Key キーをBase64エンコードする。
 	 * @param serializeString 値に文字列を保管するときにシリアライズするなら true。 falseなら文字列をUTF-8でBase64エンコードする。
 	 */
-	public OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString) {
+	public OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString, boolean doCompress) {
 		this.cs = Charset.forName("UTF-8");
 		this.buffer = ByteBuffer.allocate(BLOCK_SIZE);
 		this.socketManager = socketManager;
 		this.base64Key = base64Key;
 		this.serializeString = serializeString;
+		this.doCompress = doCompress;
 	}
 
 	/**
