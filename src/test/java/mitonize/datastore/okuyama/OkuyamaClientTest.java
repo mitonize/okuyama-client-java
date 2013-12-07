@@ -315,4 +315,17 @@ public class OkuyamaClientTest {
 		Pair[] pairs = client.getPairsByTag("tag1");
 		System.out.println(Arrays.toString(pairs));
 	}
+	
+
+	@Test
+	public void test999_version() throws IOException, OperationFailedException {
+		try {
+			OkuyamaClient client = factory.createClient();
+			String str = client.getMasterNodeVersion();
+			
+			System.err.println("Vervion: " + str);
+		} catch(UnknownHostException e) {
+		}
+	}
+
 }
