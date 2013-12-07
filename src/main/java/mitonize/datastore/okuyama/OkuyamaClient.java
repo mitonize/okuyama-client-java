@@ -10,9 +10,18 @@ import mitonize.datastore.VersionedValue;
 
 /**
  * Okuyamaにアクセスするクライアントライブラリである。接続先管理やTCPコネクションプールも行う。
- * Okuyamaアクセス時は getConnection() を用いて接続オブジェクトを取得し、利用終了したら Connection.close()を呼ぶこと。
  */
 public interface OkuyamaClient {
+
+	/**
+	 * MasterNodeのバージョンを返す.
+	 * "0.9.5"などの形式
+	 * 
+	 * @return バージョン文字列を返す。"0.9.5"などの形式
+	 * @throws IOException 
+	 * @throws OperationFailedException 
+	 */
+	String getMasterNodeVersion() throws IOException, OperationFailedException;
 
 	/**
 	 * 保存可能な最大サイズをMasterNodeへ問い合わせる.

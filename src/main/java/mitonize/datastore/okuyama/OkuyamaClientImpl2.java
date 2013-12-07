@@ -423,6 +423,54 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		}	
 	}
 
+	
+	
+	
+	@Override
+	public String getMasterNodeVersion() throws IOException, OperationFailedException {
+		try {
+			return _getMasterNodeVersion();
+		} catch (IOException e) {
+			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
+			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
+			logger.debug("retry once cause:{}", e.getMessage());
+			return _getMasterNodeVersion();
+		}
+	}
+
+	String _getMasterNodeVersion() throws IOException,
+			OperationFailedException {
+		SocketStreams socket = null;
+		boolean failed = true;
+		try	{
+			socket = socketManager.aquire();
+			
+			OutputStream os = socket.getOutputStream();
+			InputStream is = socket.getInputStream();
+			createBuffer(os, 999);
+			sendRequest(os);
+	
+			readResponse(is);
+			long code = nextNumber(is);
+			if (code != 999) {
+				throw new OperationFailedException("Unexprected code:" + code);
+			}
+			String str = nextString(is, false);
+			if (str.startsWith("VERSION ")) {
+				failed = false;
+				str = str.substring("VERSION okuyama-".length());
+				return str;
+			} else {
+				throw new OperationFailedException();
+			}
+		} finally {
+			if (failed) {
+				socketManager.destroy(socket);
+			}
+			socketManager.recycle(socket);
+		}
+	}
+
 	@Override
 	public long initClient() throws IOException, OperationFailedException {
 		try {
