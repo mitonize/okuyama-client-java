@@ -42,7 +42,7 @@ public class Pair {
 
 	@Override
 	public String toString() {
-		return "Pair [key=" + key + ", value=" + value + "]";
+		return "Pair(\"" + key + "\", \"" + value + "\")";
 	}
 
 	public String getKey() {

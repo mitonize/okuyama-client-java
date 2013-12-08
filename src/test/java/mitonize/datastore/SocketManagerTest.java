@@ -1,17 +1,16 @@
 package mitonize.datastore;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertEquals;
 
 import java.io.IOException;
 import java.net.ServerSocket;
+import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
-import java.util.Stack;
 
 import mitonize.datastore.SocketManager.Endpoint;
 
 import org.junit.Before;
-import org.junit.BeforeClass;
 import org.junit.Test;
 
 public class SocketManagerTest {
@@ -19,6 +18,10 @@ public class SocketManagerTest {
 	String[] endpoints;
 	final int ENDPOINT_COUNT = 3;
 
+	/**
+	 * サーバソケットを作成してオープンしたソケットのエンドポイント情報を設定する。
+	 * @throws Exception
+	 */
 	@Before
 	public void setUp() throws Exception {
 		serverSockets = new ServerSocket[ENDPOINT_COUNT];
@@ -30,30 +33,29 @@ public class SocketManagerTest {
 			endpoints[i] = "localhost:" + serverSockets[i].getLocalPort();
 		}
 	}
-
-	@Test
-	public void testAquire() {
-		fail("Not yet implemented");
+	String str(Endpoint endpoint) {
+		return endpoint.toString();
+//		return endpoint.address.getHostName() + ":" + endpoint.port;
 	}
 
-	@Test
-	public void testRecycle() {
-		fail("Not yet implemented");
+	String str(SocketStreams streams) {
+		Socket s = streams.getSocket();
+		return s.getInetAddress().getHostName() + ":" + s.getPort();
 	}
 
 	@Test
 	public void testNextEndpoint() throws UnknownHostException {
 		SocketManager manager = new SocketManager(endpoints, 3);
 		Endpoint endpoint = manager.nextEndpoint();
-		System.out.printf("%s:%s\n", endpoint.address.getHostName(), endpoint.port);
+		assertEquals(endpoints[1], str(endpoint));
 		endpoint = manager.nextEndpoint();
-		System.out.printf("%s:%s\n", endpoint.address.getHostName(), endpoint.port);
+		assertEquals(endpoints[2], str(endpoint));
 		endpoint = manager.nextEndpoint();
-		System.out.printf("%s:%s\n", endpoint.address.getHostName(), endpoint.port);
+		assertEquals(endpoints[0], str(endpoint));
 		endpoint = manager.nextEndpoint();
-		System.out.printf("%s:%s\n", endpoint.address.getHostName(), endpoint.port);
+		assertEquals(endpoints[1], str(endpoint));
 		endpoint = manager.nextEndpoint();
-		System.out.printf("%s:%s\n", endpoint.address.getHostName(), endpoint.port);
+		assertEquals(endpoints[2], str(endpoint));
 	}
 
 	@Test
@@ -64,35 +66,24 @@ public class SocketManagerTest {
 			serverSockets[1].close();
 			SocketStreams streams;
 			streams = manager.openSocket();
-			System.out.println(streams.socket);
+			assertEquals(endpoints[2], str(streams));
 			streams = manager.openSocket();
-			System.out.println(streams.socket);
+			assertEquals(endpoints[0], str(streams));
 			streams = manager.openSocket();
-			System.out.println(streams.socket);
+			assertEquals(endpoints[2], str(streams));
 
 			serverSockets[1] = new ServerSocket();
 			serverSockets[1].bind(backup);
-//			manager.getEndpointAt(1).markEndpointOffline(false);
 			streams = manager.openSocket();
-			System.out.println(streams.socket);
-			Thread.sleep(1500);
+			assertEquals(endpoints[2], str(streams));
+			Thread.sleep(10000);
 			streams = manager.openSocket();
-			System.out.println(streams.socket);
+			assertEquals(endpoints[0], str(streams));
 			streams = manager.openSocket();
-			System.out.println(streams.socket);
+			assertEquals(endpoints[1], str(streams));
 		} catch (IOException e) {
 			System.err.println(e);
 		}
-	}
-
-	@Test
-	public void testCloseSocket() {
-		fail("Not yet implemented");
-	}
-
-	@Test
-	public void testDestroy() {
-		fail("Not yet implemented");
 	}
 
 }

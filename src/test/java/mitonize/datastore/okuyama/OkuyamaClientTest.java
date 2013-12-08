@@ -21,28 +21,47 @@ import mitonize.datastore.VersionedValue;
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
 
 public class OkuyamaClientTest {
+	static Logger logger = LoggerFactory.getLogger(OkuyamaClientTest.class);
 	static OkuyamaClientFactory factory;
+	static boolean compatibility = true;
+	static boolean verbose = logger.isTraceEnabled();
 	
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
-		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888", "127.0.0.1:8889"}, 5);
+		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888", "127.0.0.1:8889"}, 6, compatibility, verbose);
+	}
+	
+	void log(String method, Object ... msg) {
+		StringBuilder sb = new StringBuilder();
+		for (Object m: msg) {
+			if (m == null) m = "(null)";
+			sb.append(m.toString()).append(' ');
+		}
+		logger.debug("{}: {}", method, sb.toString());
 	}
 
 	@Test
+	@Ignore
 	public void test0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test0";
 		OkuyamaClient client = factory.createClient();
 
 		long maxStorable = client.initClient();
-		System.out.println(maxStorable);
+		log(METHOD_NAME, maxStorable);
 	}
 
 	@Test
 	public void test1_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test1_0";
 		OkuyamaClient client = factory.createClient();
 
 		client.setObjectValue("HOGE00", new Date(), null, 0);
+		Object obj = client.getObjectValue("HOGE00");
+		log(METHOD_NAME, obj);
 	}
 
 	@Test
@@ -147,7 +166,8 @@ public class OkuyamaClientTest {
 
 		@Override
 		public void run() {
-			System.out.println("start:" + Thread.currentThread().getName());
+			final String METHOD_NAME = "test1_7_multithread";
+			log(METHOD_NAME, "start:" + Thread.currentThread().getName());
 			OkuyamaClient client = factory.createClient();
 			for (int i = 0; i < LOOP_COUNT; ++i) {
 				String key = String.format("%s_%08d", id, i);
@@ -162,14 +182,13 @@ public class OkuyamaClientTest {
 					Thread.sleep(1);
 				} catch (IOException e) {
 					System.err.println("ERROR IOException:" + e.getMessage());
-					break;
 				} catch (OperationFailedException e) {
 					System.err.println("ERROR OperationFaildException:" + e.getMessage());
 				} catch (InterruptedException e) {
 					System.err.println("ERROR InterruptedException:" + e.getMessage());
 				}
 			}
-			System.out.println("done:" + Thread.currentThread().getName());
+			log(METHOD_NAME, "done:" + Thread.currentThread().getName());
 		}
 	}
 
@@ -180,6 +199,9 @@ public class OkuyamaClientTest {
 		for (int i = 0; i < 6; ++i) {
 			Thread thread = new Thread(new Load("key" + i));
 			threads.add(thread);
+			// 起動時にウエイトを入れないとOkuyamaから例外が発生する。
+			// NG:MasterNode - setKeyValue - Exception - okuyama.base.lang.BatchException: Key Node IO Error: detail info for log file
+			Thread.sleep(900);
 			thread.start();
 		}
 		for (int i = 0; i < threads.size(); ++i) {
@@ -190,21 +212,23 @@ public class OkuyamaClientTest {
 
 	@Test
 	public void test2_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test2_0";
 		OkuyamaClient client = factory.createClient();
 
 		Object obj = client.getObjectValue("HOGE00");
-		System.out.println(obj.getClass().getName());
+		log(METHOD_NAME, obj.getClass().getName());
 	}
 
 	@Test
 	public void test1_10() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test1_10";
 		OkuyamaClient client = factory.createClient();
 
 		Object obj = client.getObjectValue("notexistkey");
 		if (obj == null)
-			System.out.println("(null)");
+			log(METHOD_NAME, "(null)");
 		else
-			System.out.println(obj.getClass().getName());
+			log(METHOD_NAME, obj.getClass().getName());
 	}
 
 	@Test
@@ -224,46 +248,67 @@ public class OkuyamaClientTest {
 
 	@Test
 	public void test4_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test4_0";
 		OkuyamaClient client = factory.createClient();
 
 		String[] strs = client.getTagKeys("tag1", false);
-		System.out.println(Arrays.toString(strs));
+		log(METHOD_NAME, Arrays.toString(strs));
 	}
 
 	@Test
 	public void test5_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test5_0";
 		OkuyamaClient client = factory.createClient();
 
 		Object obj = client.removeObjectValue("HOGE1");
-		System.out.println(obj);
+		log(METHOD_NAME, obj);
 	}
 
 	@Test
-	@Ignore
-	public void test6_0() throws IOException, OperationFailedException {
+//	@Ignore
+	public void test6_0() throws IOException, OperationFailedException, InterruptedException {
 		OkuyamaClient client = factory.createClient();
 	
 		SecureRandom rand = new SecureRandom(); 
 		String key = "HOGE_" + Long.toString(rand.nextLong());
 	
 		boolean success;
-		success = client.addObjectValue(key, "タグ1", null, 60);
+		success = client.addObjectValue(key, "タグ1", null, 1);
 		assertTrue(success);
-		success = client.addObjectValue(key, "タグ1", new String[]{"tag1","tag2"}, 60);
+		success = client.addObjectValue(key, "タグ1", new String[]{"tag1","tag2"}, 1);
 		assertFalse(success);
 
 		client.removeObjectValue(key);
 	}
 
 	@Test
+//	@Ignore
+	public void test6_1() throws IOException, OperationFailedException, InterruptedException {
+		OkuyamaClient client = factory.createClient();
+	
+		SecureRandom rand = new SecureRandom(); 
+		String key = "HOGE_" + Long.toString(rand.nextLong());
+	
+		boolean success;
+		success = client.addObjectValue(key, "タグ1", null, 1);
+		assertTrue(success);
+		Thread.sleep(1100);
+		success = client.addObjectValue(key, "タグ1", new String[]{"tag1","tag2"}, 1);
+		assertTrue(success);
+
+		client.removeObjectValue(key);
+	}
+
+	@Test
 	public void test15_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test15_0";
 		OkuyamaClient client = factory.createClient();
 		
 //		client.setObjectValue("HOGE00", new Date(), null, 0);
 		VersionedValue v = client.getObjectValueVersionCheck("HOGE00");
 		client.setObjectValueVersionCheck("HOGE00", new Date(), v.getVersion(), null, 0);
 		v = client.getObjectValueVersionCheck("HOGE00");
-		System.out.println(v.getVersion());
+		log(METHOD_NAME, v.getVersion());
 	}
 
 	@Test
@@ -281,24 +326,26 @@ public class OkuyamaClientTest {
 
 	@Test
 	public void test22_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test22_0";
 		OkuyamaClient client = factory.createClient();
 
 		Object[] objects = client.getMultiObjectValues("HOGE00", "HOGE01", "HOGE6", "HOGE1");
-		System.out.println(Arrays.toString(objects));
+		log(METHOD_NAME, Arrays.toString(objects));
 	}
 
 	@Test
 	public void test23_0() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test23_0";
 		OkuyamaClient client = factory.createClient();
 
 		Pair[] pairs = client.getPairsByTag("tag1");
-		System.out.println(Arrays.toString(pairs));
+		log(METHOD_NAME, Arrays.toString(pairs));
 	}
 
 	@Test
 	public void test23_unresolved_host() throws IOException, OperationFailedException {
 		try {
-			OkuyamaClientFactory f = new OkuyamaClientFactoryImpl(new String[]{"unresolved.local:8888"}, 5);
+			OkuyamaClientFactory f = new OkuyamaClientFactoryImpl(new String[]{"unresolved.localdomain:8888"}, 5);
 			fail("Expects UnknownHostException");
 			f.createClient();
 		} catch(UnknownHostException e) {
@@ -306,13 +353,29 @@ public class OkuyamaClientTest {
 	}
 	
 	@Test
+	@Ignore
 	public void test23_multiple_hosts() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test23_multiple_hosts";
 		String[] masternodes = new String[]{"localhost:8888", "127.0.0.1:8889"};
 		
 		OkuyamaClientFactory f = new OkuyamaClientFactoryImpl(masternodes, 5);
 		OkuyamaClient client = f.createClient();
 
 		Pair[] pairs = client.getPairsByTag("tag1");
-		System.out.println(Arrays.toString(pairs));
+		log(METHOD_NAME, Arrays.toString(pairs));
 	}
+	
+
+	@Test
+	public void test999_version() throws IOException, OperationFailedException {
+		final String METHOD_NAME = "test999_version";
+		try {
+			OkuyamaClient client = factory.createClient();
+			String str = client.getMasterNodeVersion();
+			
+			log(METHOD_NAME, "Vervion: " + str);
+		} catch(UnknownHostException e) {
+		}
+	}
+
 }
