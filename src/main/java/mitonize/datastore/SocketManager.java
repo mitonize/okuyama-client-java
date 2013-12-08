@@ -28,6 +28,7 @@ import org.slf4j.LoggerFactory;
 
 public class SocketManager {
 	Logger logger = LoggerFactory.getLogger(SocketManager.class);
+
 	/**
 	 * 接続先のTCPエンドポイントを保持
 	 */
@@ -67,15 +68,62 @@ public class SocketManager {
 				logger.warn("Mark online  - {}:{}", this.address.getHostName(), this.port);
 			}
 		}
+
+		@Override
+		public String toString() {
+			StringBuilder builder = new StringBuilder();
+			builder.append(address.getHostName());
+			builder.append(":");
+			builder.append(port);
+			if (offline) {
+				builder.append(" (offline)");
+			}
+			return builder.toString();
+		}
 	}
+
+	/**
+	 * 接続先のエンドポイント(ホスト名とポートの組で"hostname:port"の形式)の配列。
+	 * ラウンドロビンで選択されるが、接続がオフラインであることを検知するとラウンドロビン対象から外される。
+	 * ただし、すべての接続先がオフラインの時は1番目(添字0)の要素が返却される。
+	 */
 	Endpoint[] endpoints;
+
+	/**
+	 * 直近で新規に開いたソケットをプールに格納した時刻。初期値は0。
+	 */
 	long timestampLatelyPooled = 0;
 
+	/**
+	 * オフライン状態になったエンドポイントがオンラインになったかをバックグラウンドで検査してオンライン状態にするExecutor。
+	 */
 	final ScheduledExecutorService offlineManagementService;
 
+	/**
+	 * オフライン状態からTCP接続が確立してからオンラインにするまでに待つ時間(ミリ秒)。
+	 * TCPポートが開いてから実際に待ち受け可能になるまで時間がかかるサーバの場合に指定する。
+	 * 不要な場合は0でよい。
+	 */
+	int delayToMarkOnlineInMillis = 3000;
+
+	/**
+	 * TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)。
+	 */
+	int timeoutToConnectInMillis = 1000;
+
+	/**
+	 * ソケットの読み取りタイムアウト時間(ミリ秒)。
+	 */
+	int timeoutToReadInMillis = 1000;
+
+	/**
+	 * オープンしているソケット、入出力ストリームをプールするためのキュー。
+	 * 要求された際にキューから取り出し、使用後に返却された時にキューに戻す。
+	 */
 	final protected ArrayBlockingQueue<SocketStreams> queue;
 	final protected AtomicInteger activeSocketCount;
 	final protected AtomicInteger currentEndpointIndex;
+
 	private boolean dumpStream = false;
 	private int maxPoolSize = 0;
 
@@ -111,11 +159,27 @@ public class SocketManager {
 		return dumpStream;
 	}
 
+	/**
+	 * プールしているソケットを取り出して返却する。
+	 * 取り出した時にそのソケットが有効かをチェックして、無効なら新規にソケットを開く。
+	 * 新規のソケットは登録されているエンドポイントのうちラウンドロビンで選択され、接続に成功したものとなる。
+	 * 
+	 * @return 有効な接続先のソケット。
+	 * @throws IOException 有効な接続先が1つもない場合。
+	 */
 	public SocketStreams aquire() throws IOException {
 		SocketStreams socket = queue.poll();
 		return (socket == null || !isAvailable(socket)) ? openSocket() : socket;
 	}
 
+	/**
+	 * プールから取り出されたソケットを返却する。
+	 * 新規にオープンしたソケットのタイムスタンプを管理して、プールの上限数に達した最後のタイムスタンプよりも
+	 * 新しいソケットはキューに戻されない。タイムスタンプよりも古いソケットが無効だった場合はプール数が減るが、
+	 * 同時接続数が有効なプール数よりも増えた段階で新規に開かれ、タイムスタンプも更新される。
+	 * 
+	 * @param socket プールから取り出したソケット
+	 */
 	public void recycle(SocketStreams socket) {
 		if (socket == null)
 			return;
@@ -136,12 +200,14 @@ public class SocketManager {
 		}
 		@Override
 		public void run() {
+			int timeout = timeoutToConnectInMillis;
+			int delay = delayToMarkOnlineInMillis;
 			InetSocketAddress address = new InetSocketAddress(endpoint.address, endpoint.port);
 			Socket socket = new Socket();
 			try {
 				// 接続に成功したらオフラインマークをクリアする。
-				socket.connect(address, 1000);
-				Thread.sleep(5000);
+				socket.connect(address, timeout);
+				Thread.sleep(delay);
 				endpoint.markEndpointOffline(false);
 			} catch (IOException e) {
 			} catch (InterruptedException e) {
@@ -186,19 +252,16 @@ public class SocketManager {
 	}
 	
 	/**
-	 * 指定したソケットに関連づいているエンドポイントのオフライン状態を設定する。
-	 * @param socket ソケットオブジェクト
-	 * @param offline オフラインかどうか (true:オフライン、false:オンライン)
+	 * 新しくソケットを開く。登録されているエンドポイントをラウンドロビンで順次選択し、接続が確立するまで繰り返す。
+	 * 最後に失敗した接続試行と今回取得したエンドポイントが同じであればそれ以上の試行は行わず、例外を投げる。
+	 * @return 開かれたソケット
+	 * @throws IOException 有効な接続先が1つもないとき
 	 */
-	void markEndpointOffline(Socket socket, boolean offline) {
-		for (Endpoint e: endpoints) {
-			if (e.address.equals(socket.getInetAddress()) && e.port == socket.getPort()) {
-				e.markEndpointOffline(offline);
-			}
-		}
-	}
 	@SuppressWarnings("resource")
 	SocketStreams openSocket() throws IOException {
+		int timeoutToConnect = timeoutToConnectInMillis;
+		int timeoutToRead = timeoutToReadInMillis;
+
 		Endpoint lastAttempt = null;
 		for (int i=endpoints.length; i >= 0; --i) {
 			Endpoint endpoint = nextEndpoint(); // nextEndpoint() never returns null.
@@ -209,8 +272,8 @@ public class SocketManager {
 			try {
 				InetSocketAddress address = new InetSocketAddress (endpoint.address, endpoint.port);
 				Socket socket = new Socket();
-				socket.setSoTimeout(2000);
-				socket.connect(address, 2000);
+				socket.setSoTimeout(timeoutToRead);
+				socket.connect(address, timeoutToConnect);
 				OutputStream os = new BufferedOutputStream(socket.getOutputStream());
 				InputStream is = new BufferedInputStream(socket.getInputStream());
 				Charset cs = Charset.forName("UTF-8");
@@ -227,6 +290,9 @@ public class SocketManager {
 				}
 				if (logger.isInfoEnabled()) {
 					logger.info("Socket opened - {}:{} count:{}", endpoint.address.getHostName(), endpoint.port, c);
+				}
+				if (endpoint.offline) {
+					endpoint.markEndpointOffline(false);
 				}
 				return s;
 			} catch (UnresolvedAddressException e) {
@@ -265,8 +331,6 @@ public class SocketManager {
 			try {
 				s.close();
 			} catch (IOException e) {
-			} finally {
-				markEndpointOffline(s, true);				
 			}
 			return false;
 		}

@@ -182,7 +182,6 @@ public class OkuyamaClientTest {
 					Thread.sleep(1);
 				} catch (IOException e) {
 					System.err.println("ERROR IOException:" + e.getMessage());
-//					break;
 				} catch (OperationFailedException e) {
 					System.err.println("ERROR OperationFaildException:" + e.getMessage());
 				} catch (InterruptedException e) {
