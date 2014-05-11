@@ -3,6 +3,7 @@ package mitonize.datastore.okuyama;
 import java.net.UnknownHostException;
 
 import mitonize.datastore.SocketManager;
+import mitonize.datastore.TextDumpFilterStreamFactory;
 
 
 public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
@@ -27,7 +28,11 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 	public OkuyamaClientFactoryImpl(String[] masternodes, int minPoolSize, boolean compatibilityMode, boolean dumpStream) throws UnknownHostException {
 		super.setMasterNodes(masternodes);
 		socketManager = new SocketManager(masternodes, minPoolSize);
-		socketManager.setDumpStream(dumpStream);
+		if (dumpStream) {
+			TextDumpFilterStreamFactory dumpFilterStreamFactory = new TextDumpFilterStreamFactory();
+			socketManager.setDumpFilterStreamFactory(dumpFilterStreamFactory);
+		}
+
 		setCompatibilityMode(compatibilityMode);
 	}
 
