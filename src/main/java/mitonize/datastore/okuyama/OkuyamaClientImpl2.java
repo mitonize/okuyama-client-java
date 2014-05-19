@@ -35,7 +35,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	boolean serializeString = false;
 	ByteBuffer buffer;
 
-	private boolean doCompress = true;
+	private Compressor compressor;
+	private Compressor[] compressors;
 
 	/**
 	 * OkuyamaClient インスタンスを生成する。
@@ -50,7 +51,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		this.socketManager = socketManager;
 		this.base64Key = base64Key;
 		this.serializeString = serializeString;
-		this.doCompress = doCompress;
+		this.compressors = new Compressor[2];
+		this.compressors[0] = new JdkDeflaterCompressor();
+		this.compressors[1] = new LZFCompressor();
+		if (doCompress) {
+			this.compressor = this.compressors[1];
+		}
 	}
 
 	/**
@@ -121,8 +127,6 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		if (str == null) {
 			str = "(B)";
 			base64 = false;
-//			os.write(VALUE_SEPARATOR);
-//			return;
 		}
 		ByteBuffer b = cs.encode(str);
 		if (base64) {
@@ -150,7 +154,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		stream.close();
 
 		byte[] serialized = baos.toByteArray();
-		ByteBuffer b = ByteBuffer.wrap(serialized);
+		ByteBuffer b;
+		if (serialized.length > 32 && compressor != null) {
+			b = compressor.compress(serialized);
+		} else {
+			b = ByteBuffer.wrap(serialized);
+		}
 
 		ByteBuffer buf = Base64.encodeBuffer(b);
 		os.write(VALUE_SEPARATOR);
@@ -405,10 +414,24 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @return デコードしたオブジェクト
 	 * @throws IOException 通信に何らかのエラーが発生した場合
 	 * @throws ClassNotFoundException  
+	 * @throws OperationFailedException 
 	 */
-	Object decodeObject(byte[] b, int offset, int length) throws IOException, ClassNotFoundException {
+	Object decodeObject(byte[] b, int offset, int length) throws IOException, ClassNotFoundException, OperationFailedException {
 		if (b.length == 0 || length == 0 || b.length < offset + length) {
 			return null;
+		}
+
+		if (Compressor.isCompressedPayload(b, offset, length)) {
+			/* 独自仕様：圧縮されたバイト列はマジックコード 0xac 0xee で始めることとする。 */
+			/* 独自仕様：3バイト目には格納時に使用されたCompressorの識別子を設定する。 */
+			Compressor compressor = Compressor.getCompressor(b[offset+2]);
+			if (compressor == null) {
+				throw new OperationFailedException("Unknown compressorId");
+			}
+			ByteBuffer decompressed = compressor.decompress(b, offset, length);
+			b = decompressed.array();
+			offset = decompressed.position();
+			length = decompressed.limit() - decompressed.position();
 		}
 
 		/**
