@@ -5,7 +5,7 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
-public class JdkDeflaterCompressor implements Compressor {
+public class JdkDeflaterCompressor extends Compressor {
 	private static final int BLOCK_SIZE_DECOMPRESS = 8192;
 	private static final int BLOCK_SIZE_COMPRESS   = 4096;
 	int averageRatio = 4;
@@ -17,13 +17,23 @@ public class JdkDeflaterCompressor implements Compressor {
 	public JdkDeflaterCompressor() {
 		deflater = new Deflater(Deflater.BEST_SPEED);
 		inflater = new Inflater();
+		registerCompressor();
+	}
+
+	@Override
+	int getCompressorId() {
+		return 0;
 	}
 	
 	public ByteBuffer compress(byte[] serialized) {
+		return compress(serialized, 0, serialized.length);
+	}
+	
+	public ByteBuffer compress(byte[] serialized, int offset, int length) {
 		try {
 			Deflater deflater = this.deflater;
 			deflater.reset();
-			deflater.setInput(serialized);
+			deflater.setInput(serialized, offset, length);
 			deflater.finish();
 
 			int blocks = serialized.length / averageRatio / BLOCK_SIZE_COMPRESS;
@@ -34,7 +44,10 @@ public class JdkDeflaterCompressor implements Compressor {
 			} else {
 				z = allocatedBytesCompress;
 			}
-			int compressed = 0;
+
+			writeMagicBytes(z);
+			int compressed = 3;
+
 			while (!deflater.finished()) {
 				int remain = z.length - compressed;
 				int size = deflater.deflate(z, compressed, remain);
@@ -56,7 +69,7 @@ public class JdkDeflaterCompressor implements Compressor {
 	public ByteBuffer decompress(byte[] b, int offset, int length) {
 		Inflater inflater = this.inflater;
 		inflater.reset();
-		inflater.setInput(b, offset, length);
+		inflater.setInput(b, offset+3, length-3);
 
 		int blocks = (length * averageRatio) / BLOCK_SIZE_DECOMPRESS;
 		blocks = blocks < 1 ? 1: blocks;
