@@ -24,8 +24,8 @@ import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
-public class OkuyamaClientTest {
-	static Logger logger = LoggerFactory.getLogger(OkuyamaClientTest.class);
+public class OkuyamaClientITCase {
+	static Logger logger = LoggerFactory.getLogger(OkuyamaClientITCase.class);
 	static OkuyamaClientFactory factory;
 	static boolean compatibility = true;
 	static boolean verbose = logger.isTraceEnabled();
