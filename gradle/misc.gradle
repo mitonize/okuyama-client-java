@@ -1,8 +1,0 @@
-task wrapper(type: Wrapper) {
-	gradleVersion = 1.7
-}
-task initdirs << {
-	sourceSets*.allSource.srcDirs.flatten()*.mkdirs()
-	webAppDir.mkdirs()
-}
-

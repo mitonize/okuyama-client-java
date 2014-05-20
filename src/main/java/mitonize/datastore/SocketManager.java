@@ -2,8 +2,6 @@ package mitonize.datastore;
 
 import java.io.BufferedInputStream;
 import java.io.BufferedOutputStream;
-import java.io.FilterInputStream;
-import java.io.FilterOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
@@ -11,11 +9,8 @@ import java.net.InetAddress;
 import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
-import java.nio.ByteBuffer;
-import java.nio.CharBuffer;
 import java.nio.channels.UnresolvedAddressException;
 import java.nio.charset.Charset;
-import java.nio.charset.CharsetDecoder;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -124,8 +119,9 @@ public class SocketManager {
 	final protected AtomicInteger activeSocketCount;
 	final protected AtomicInteger currentEndpointIndex;
 
-	private boolean dumpStream = false;
 	private int maxPoolSize = 0;
+
+	private DumpFilterStreamFactory dumpFilterStreamFactory;
 
 	public SocketManager(String[] masternodes, int maxPoolSize) throws UnknownHostException {
 		if (masternodes.length == 0) {
@@ -150,13 +146,14 @@ public class SocketManager {
 			endpoints[i] = new Endpoint(InetAddress.getByName(hostname), port);
 		}
 	}
-	
+
+	@Deprecated
 	public void setDumpStream(boolean b) {
-		dumpStream = b;
+		dumpFilterStreamFactory = new TextDumpFilterStreamFactory();
 	}
 
 	public boolean isDumpStream() {
-		return dumpStream;
+		return dumpFilterStreamFactory != null;
 	}
 
 	/**
@@ -276,10 +273,9 @@ public class SocketManager {
 				socket.connect(address, timeoutToConnect);
 				OutputStream os = new BufferedOutputStream(socket.getOutputStream());
 				InputStream is = new BufferedInputStream(socket.getInputStream());
-				Charset cs = Charset.forName("UTF-8");
-				if (dumpStream) {
-					os = new DumpFilterOutputStream(os, cs);
-					is = new DumpFilterInputStream(is, cs);
+				if (dumpFilterStreamFactory != null) {
+					is = dumpFilterStreamFactory.wrapInputStream(is);
+					os = dumpFilterStreamFactory.wrapOutputStream(os);
 				}
 				SocketStreams s = new SocketStreams(socket, os, is);
 				int c = activeSocketCount.incrementAndGet();
@@ -353,97 +349,9 @@ public class SocketManager {
 	public int getMaxPoolSize() {
 		return maxPoolSize;
 	}
-}
 
-class DumpFilterOutputStream extends FilterOutputStream {
-	Charset cs;
-	CharsetDecoder decoder;
-	CharBuffer buffer = CharBuffer.allocate(256);
-	private int charsInLine ;
-
-	protected DumpFilterOutputStream(OutputStream os, Charset cs) {
-		super(os);
-		this.cs = cs;
-		decoder = cs.newDecoder();
+	public void setDumpFilterStreamFactory(
+			DumpFilterStreamFactory dumpFilterStreamFactory) {
+		this.dumpFilterStreamFactory = dumpFilterStreamFactory;
 	}
-
-	@Override
-	public void write(int b) throws IOException {
-		super.write(b);
-		++charsInLine;
-		if (charsInLine < 256) {
-			decoder.decode(ByteBuffer.wrap(new byte[]{(byte) b}), buffer, false);
-		}
-		boolean newline = false;
-		if (b == '\n') {
-			charsInLine = 0;
-			newline = true;
-			System.out.print("OUTPUT: ");
-		}
-		if (newline || !buffer.hasRemaining()) {
-			buffer.flip();
-			System.out.print(buffer.toString());
-			buffer.clear();
-		}
-	}
-}
-
-class DumpFilterInputStream extends FilterInputStream {
-	Charset cs;
-	CharsetDecoder decoder;
-	CharBuffer buffer = CharBuffer.allocate(256);
-	private int charsInLine;
-
-	protected DumpFilterInputStream(InputStream is, Charset cs) {
-		super(is);
-		this.cs = cs;
-		decoder = cs.newDecoder();
-	}
-
-	@Override
-	public int read() throws IOException {
-		int b = super.read();
-		++charsInLine;
-		if (charsInLine < 256) {
-			decoder.decode(ByteBuffer.wrap(new byte[]{(byte) b}), buffer, false);
-		}
-		boolean newline = false;
-		if (b == '\n') {
-			charsInLine = 0;
-			newline = true;
-			System.out.print(" INTPUT: ");
-		}
-		if (newline || !buffer.hasRemaining()) {
-			buffer.flip();
-			System.out.print(buffer.toString());
-			buffer.clear();
-		}
-		return b;
-	}
-
-	@Override
-	public int read(byte[] b, int off, int len) throws IOException {
-		int read = super.read(b, off, len);
-
-		for (int i=off; i < off + read; ++i) {
-			int c = b[i];
-			++charsInLine;
-			if (charsInLine < 256) {
-				decoder.decode(ByteBuffer.wrap(new byte[]{(byte) c}), buffer, false);
-			}
-			boolean newline = false;
-			if (c == '\n') {
-				charsInLine = 0;
-				newline = true;
-				System.out.print(" INPUT: ");
-			}
-			if (newline || !buffer.hasRemaining()) {
-				buffer.flip();
-				System.out.print(buffer.toString());
-				buffer.clear();
-			}
-		}
-		return read;
-	}
-
 }
