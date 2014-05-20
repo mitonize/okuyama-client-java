@@ -8,6 +8,15 @@ import com.ning.compress.CompressionFormatException;
 import com.ning.compress.lzf.LZFDecoder;
 import com.ning.compress.lzf.LZFEncoder;
 
+/**
+ * Compress payload with LZF algorithm. 
+ * LZF compression algorithm, written in Java, is much faster 
+ * than {@code}{@link Deflater}{@code} and {@code}{@link Inflater}{@code},
+ *  but compressed size is larger about 40-50% than that by them.
+ *  
+ *  @see https://github.com/ning/compress
+ *  @since 1.0.7
+ */
 public class LZFCompressor extends Compressor {
 	byte[] HEADER;
 	
