@@ -1,0 +1,35 @@
+
+apply plugin: 'java'
+apply plugin: 'eclipse'
+
+apply from: file('gradle/misc.gradle')
+
+// Basic source profile
+sourceCompatibility = targetCompatibility = 1.6
+tasks.withType(AbstractCompile) each {
+	it.options.encoding = 'UTF-8'
+}
+
+repositories {
+	mavenCentral()
+	mavenRepo(url: 'http://repository.jboss.org/nexus/content/groups/public')
+}
+
+dependencies {
+    // For compatibility test set path of original okuyama distribution
+	def originalDistribution = '/path/to/okuyama-0.9.5'
+
+	compile 'org.slf4j:slf4j-log4j12:1.7.5'
+	compile 'com.ning:compress-lzf:1.0.1'
+
+	testCompile 'junit:junit:4.+'
+	testCompile files("$originalDistribution/okuyama-0.9.5.jar")	
+	testRuntime fileTree(dir: "$originalDistribution/lib", include: '*.jar')	
+}
+
+version = '1.0.7-SNAPSHOT'
+jar {
+    manifest {
+        attributes 'Implementation-Title': 'Okuyama Client', 'Implementation-Version': version
+    }
+}
