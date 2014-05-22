@@ -28,7 +28,7 @@ public class OkuyamaClientITCase {
 	static Logger logger = LoggerFactory.getLogger(OkuyamaClientITCase.class);
 	static OkuyamaClientFactoryImpl factory;
 	static boolean compatibility = true;
-	static boolean verbose = true;//logger.isTraceEnabled();
+	static boolean verbose = false;//logger.isTraceEnabled();
 	
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
@@ -99,34 +99,41 @@ public class OkuyamaClientITCase {
 
 	@Test
 	public void test1_4_largedata() throws IOException, OperationFailedException {
-		OkuyamaClient client = factory.createClient();
+		boolean doCompress = factory.isCompressionMode();		
+		factory.setComressionMode(false);
+		try {
+			OkuyamaClient client = factory.createClient();
+	
+			long maxlength = client.initClient();
+			int size = (int) maxlength + 55005;
 
-		long maxlength = client.initClient();
-		int size = (int) maxlength + 55005;
-		if (factory.isCompressionMode()) {
-			size *= 4;
+			// 55005 OK                    2170528
+			// 55006 NG:Max Data Size Over 2170532
+			// 55021 Value Length Error    2170556
+			byte[] verylargevalue = new byte[size];
+			Arrays.fill(verylargevalue, (byte)'a');
+			boolean ret = client.setObjectValue("HOGE2", verylargevalue, null, 0);
+			assertFalse(ret);
+		} finally {
+			factory.setComressionMode(doCompress);
 		}
-		// 55005 OK                    2170528
-		// 55006 NG:Max Data Size Over 2170532
-		// 55021 Value Length Error    2170556
-		byte[] verylargevalue = new byte[size];
-		Arrays.fill(verylargevalue, (byte)'a');
-		boolean ret = client.setObjectValue("HOGE2", verylargevalue, null, 0);
-		assertFalse(ret);
 	}
 
 	@Test
 	public void test1_4_largedata64k() throws IOException, OperationFailedException {
-		OkuyamaClient client = factory.createClient();
-
-		int size = (int) 65536;
-		// 55005 OK                    2170528
-		// 55006 NG:Max Data Size Over 2170532
-		// 55021 Value Length Error    2170556
-		byte[] verylargevalue = new byte[size];
-		Arrays.fill(verylargevalue, (byte)'a');
-		boolean ret = client.setObjectValue("HOGE2_0", verylargevalue, null, 0);
-		assertTrue(ret);
+		boolean doCompress = factory.isCompressionMode();		
+		factory.setComressionMode(false);
+		try {
+			OkuyamaClient client = factory.createClient();
+	
+			int size = (int) 65536;
+			byte[] verylargevalue = new byte[size];
+			Arrays.fill(verylargevalue, (byte)'a');
+			boolean ret = client.setObjectValue("HOGE2_0", verylargevalue, null, 0);
+			assertFalse(ret);
+		} finally {
+			factory.setComressionMode(doCompress);
+		}
 	}
 	
 	@Test
@@ -199,6 +206,7 @@ public class OkuyamaClientITCase {
 	@Test
 	//@Ignore
 	public void test1_7_multithread() throws IOException, OperationFailedException, InterruptedException {
+		factory.setComressionMode(false);
 		ArrayList<Thread> threads = new ArrayList<Thread>();
 		for (int i = 0; i < 6; ++i) {
 			Thread thread = new Thread(new Load("key" + i));
