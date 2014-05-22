@@ -22,21 +22,16 @@
 						<exclude>**/*ITCase.java</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
 				<executions>
 					<execution>
-						<id>integration-test</id>
 						<goals>
-							<goal>test</goal>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
 						</goals>
-						<phase>integration-test</phase>
-						<configuration>
-							<excludes>
-								<exclude>none</exclude>
-							</excludes>
-							<includes>
-								<include>**/*ITCase.java</include>
-							</includes>
-						</configuration>
 					</execution>
 				</executions>
 			</plugin>
