@@ -1,6 +1,7 @@
 package mitonize.datastore.okuyama;
 
 import java.nio.ByteBuffer;
+import java.util.concurrent.ArrayBlockingQueue;
 import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
@@ -8,18 +9,56 @@ import java.util.zip.Inflater;
 public class JdkDeflaterCompressor extends Compressor {
 	private static final int BLOCK_SIZE_DECOMPRESS = 8192;
 	private static final int BLOCK_SIZE_COMPRESS   = 4096;
+	private static final int POOL_SIZE = 10;
 	int averageRatio = 4;
-	Deflater deflater;
-	Inflater inflater;
+	
+	ArrayBlockingQueue<Deflater> deflaters;
+	ArrayBlockingQueue<Inflater> inflaters;
+	
 	byte[] allocatedBytesCompress = new byte[BLOCK_SIZE_COMPRESS];
 	byte[] allocatedBytesDecompress = new byte[BLOCK_SIZE_DECOMPRESS];
 
 	public JdkDeflaterCompressor() {
-		deflater = new Deflater(Deflater.BEST_SPEED);
-		inflater = new Inflater();
+		deflaters = new ArrayBlockingQueue<>(POOL_SIZE);
+		inflaters = new ArrayBlockingQueue<>(POOL_SIZE);
 		registerCompressor();
 	}
+	
+	private Deflater getDeflater() {
+		Deflater deflater = deflaters.poll();
+		if (deflater != null) {
+			return deflater;
+		}
+		return new Deflater(Deflater.BEST_SPEED);
+	}
+	
+	private void recycleDeflater(Deflater deflater) {
+		deflater.reset();
+		boolean	pooled = deflaters.offer(deflater);
+		if (!pooled) {
+			// 返却できなかったら捨てられる。
+			deflater.end();
+		}
+	}
 
+	private Inflater getInflater() {
+		Inflater inflater = inflaters.poll();
+		if (inflater != null) {
+			return inflater;
+		}
+		return new Inflater();
+	}
+	
+	private void recycleInflater(Inflater inflater) {
+		inflater.reset();
+		boolean	pooled = inflaters.offer(inflater);
+		if (!pooled) {
+			// 返却できなかったら捨てられる。
+			inflater.end();
+		}
+	}
+	
+	
 	@Override
 	int getCompressorId() {
 		return 0;
@@ -30,9 +69,9 @@ public class JdkDeflaterCompressor extends Compressor {
 	}
 	
 	public ByteBuffer compress(byte[] serialized, int offset, int length) {
+		Deflater deflater = null;
 		try {
-			Deflater deflater = this.deflater;
-			deflater.reset();
+			deflater = getDeflater();
 			deflater.setInput(serialized, offset, length);
 			deflater.finish();
 
@@ -63,14 +102,14 @@ public class JdkDeflaterCompressor extends Compressor {
 		} catch (Exception e) {
 			e.printStackTrace();
 			throw e;
+		} finally {
+			if (deflater != null) {
+				recycleDeflater(deflater);
+			}
 		}
 	}
 
 	public ByteBuffer decompress(byte[] b, int offset, int length) {
-		Inflater inflater = this.inflater;
-		inflater.reset();
-		inflater.setInput(b, offset+3, length-3);
-
 		int blocks = (length * averageRatio) / BLOCK_SIZE_DECOMPRESS;
 		blocks = blocks < 1 ? 1: blocks;
 		byte[] z;
@@ -80,7 +119,12 @@ public class JdkDeflaterCompressor extends Compressor {
 			z = allocatedBytesDecompress;
 		}
 		int extracted = 0;
+		Inflater inflater = null;		
 		try {
+			inflater = getInflater();
+			inflater.reset();
+			inflater.setInput(b, offset+3, length-3);
+
 			while (!inflater.finished()) {
 				int remain = z.length - extracted;
 				int size = inflater.inflate(z, extracted, remain);
@@ -99,6 +143,10 @@ public class JdkDeflaterCompressor extends Compressor {
 			e.printStackTrace();
 		} catch (Exception e) {
 			e.printStackTrace();
+		} finally {
+			if (inflater != null) {
+				recycleInflater(inflater);
+			}
 		}
 		return ByteBuffer.wrap(z, 0, extracted);
 	}
