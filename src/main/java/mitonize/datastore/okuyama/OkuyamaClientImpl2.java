@@ -591,10 +591,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				failed = false;
 				return true;
 			} else if (str.equals("false")){
-				String msg = nextString(is, false);				
-				logger.debug("setObjectValue failed. {}", msg);
-				failed = false;
-				return false;
+				String msg = nextString(is, false);
+				throw new OperationFailedException(msg);
 			} else {
 				String msg = nextString(is, false);
 				throw new OperationFailedException(msg);
@@ -787,10 +785,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				failed = false;
 				return true;
 			} else if (str.equals("false")){
-				String msg = nextString(is, false);				
-				logger.debug("addObjectValue failed. {}", msg);
-				failed = false;
-				return false;
+				String msg = nextString(is, false);
+				if (msg.startsWith("NG:Data has already")) {
+					failed = false;
+					return false;
+				} else {
+					logger.debug("addObjectValue failed. {}", msg);
+					throw new OperationFailedException(msg);
+				}
 			} else {
 				String msg = nextString(is, false);
 				throw new OperationFailedException(msg);
