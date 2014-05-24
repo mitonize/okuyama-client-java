@@ -18,6 +18,8 @@ import com.ning.compress.lzf.LZFEncoder;
  *  @since 1.0.7
  */
 public class LZFCompressor extends Compressor {
+	public static final int COMPRESSOR_ID = 1;
+	
 	byte[] HEADER;
 	
 	public LZFCompressor() {
@@ -28,7 +30,7 @@ public class LZFCompressor extends Compressor {
 	
 	@Override
 	int getCompressorId() {
-		return 1;
+		return COMPRESSOR_ID;
 	}
 
 	public ByteBuffer compress(byte[] serialized) {

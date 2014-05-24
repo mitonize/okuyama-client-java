@@ -17,11 +17,26 @@ public abstract class Compressor {
 	static final int MAX_COMPRESSORS = 4;
 	static private Compressor[] list = new Compressor[MAX_COMPRESSORS];
 
-	public static boolean isCompressedPayload(byte[] data, int offset, int length) {
+	/**
+	 * <ul>
+	 * <li>独自仕様：圧縮されたバイト列はマジックコード 0xac 0xee で始めることとする。</li>
+	 * <li>独自仕様：3バイト目には格納時に使用されたCompressorの識別子を設定する。</li>
+	 * </ul>
+	 * @param data
+	 * @param offset
+	 * @param length
+	 * @return 与えられたバイト列がCompressorによって圧縮されている場合は、展開に必要なCompressorを返す。
+	 * @throws IllegalStateException
+	 */
+	public static Compressor getAppliedCompressor(byte[] data, int offset, int length) throws IllegalStateException {
 		if (length >= 2 && data[offset] == (byte) 0xac && data[offset+1] == (byte) 0xee) {
-			return true;
+			int compressorId = data[offset + 2];
+			if (compressorId < MAX_COMPRESSORS) {
+				return list[compressorId];
+			}
+			throw new IllegalStateException("Unknown compressorId");
 		}
-		return false;
+		return null;
 	}
 
 	public static Compressor getCompressor(int compressorId) {
@@ -30,7 +45,7 @@ public abstract class Compressor {
 		}
 		return null;
 	}
-	
+
 	protected void registerCompressor() {
 		int id = getCompressorId();
 		if (id < MAX_COMPRESSORS) {

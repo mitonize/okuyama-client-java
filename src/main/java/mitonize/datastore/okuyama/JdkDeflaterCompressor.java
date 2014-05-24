@@ -7,6 +7,8 @@ import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
 public class JdkDeflaterCompressor extends Compressor {
+	public static final int COMPRESSOR_ID = 0;
+
 	private static final int BLOCK_SIZE_DECOMPRESS = 8192;
 	private static final int BLOCK_SIZE_COMPRESS   = 4096;
 	private static final int POOL_SIZE = 10;
@@ -61,9 +63,9 @@ public class JdkDeflaterCompressor extends Compressor {
 	
 	@Override
 	int getCompressorId() {
-		return 0;
+		return COMPRESSOR_ID;
 	}
-	
+
 	public ByteBuffer compress(byte[] serialized) {
 		return compress(serialized, 0, serialized.length);
 	}

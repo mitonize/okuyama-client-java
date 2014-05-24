@@ -36,7 +36,6 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	ByteBuffer buffer;
 
 	private Compressor compressor;
-	private Compressor[] compressors;
 
 	/**
 	 * OkuyamaClient インスタンスを生成する。
@@ -51,11 +50,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		this.socketManager = socketManager;
 		this.base64Key = base64Key;
 		this.serializeString = serializeString;
-		this.compressors = new Compressor[2];
-		this.compressors[0] = new JdkDeflaterCompressor();
-		this.compressors[1] = new LZFCompressor();
 		if (doCompress) {
-			this.compressor = this.compressors[1];
+			this.compressor = Compressor.getCompressor(JdkDeflaterCompressor.COMPRESSOR_ID);
 		}
 	}
 
@@ -421,20 +417,20 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			return null;
 		}
 
-		if (Compressor.isCompressedPayload(b, offset, length)) {
-			/* 独自仕様：圧縮されたバイト列はマジックコード 0xac 0xee で始めることとする。 */
-			/* 独自仕様：3バイト目には格納時に使用されたCompressorの識別子を設定する。 */
-			Compressor compressor = Compressor.getCompressor(b[offset+2]);
-			if (compressor == null) {
-				throw new OperationFailedException("Unknown compressorId");
+		/* 適用されているCompressorがあれば返す。圧縮されているが未知のCompressorであれば IllegalStateException を返す。 */
+		try {
+			Compressor compressor = Compressor.getAppliedCompressor(b, offset, length);
+			if (compressor != null) {
+				ByteBuffer decompressed = compressor.decompress(b, offset, length);
+				b = decompressed.array();
+				offset = decompressed.position();
+				length = decompressed.limit() - decompressed.position();
 			}
-			ByteBuffer decompressed = compressor.decompress(b, offset, length);
-			b = decompressed.array();
-			offset = decompressed.position();
-			length = decompressed.limit() - decompressed.position();
+		} catch (IllegalStateException e) {
+			throw new OperationFailedException("Unexpected compression state");
 		}
 
-		/**
+		/*
 		 * シリアル化されたバイト列はマジックコード 0xac 0xed で始まるという
 		 * JavaSEの仕様(Object Serialization Stream Protocol)である。
 		 * @see http://docs.oracle.com/javase/6/docs/platform/serialization/spec/protocol.html
