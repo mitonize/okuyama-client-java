@@ -9,6 +9,8 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 
+import mitonize.datastore.Compressor;
+import mitonize.datastore.JdkDeflaterCompressor;
 import mitonize.datastore.OperationFailedException;
 
 import org.junit.Before;

@@ -1,4 +1,4 @@
-package mitonize.datastore.okuyama;
+package mitonize.datastore;
 
 import java.nio.ByteBuffer;
 import java.util.concurrent.ArrayBlockingQueue;
@@ -62,7 +62,7 @@ public class JdkDeflaterCompressor extends Compressor {
 	
 	
 	@Override
-	int getCompressorId() {
+	public int getCompressorId() {
 		return COMPRESSOR_ID;
 	}
 

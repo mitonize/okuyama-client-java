@@ -1,8 +1,6 @@
-package mitonize.datastore.okuyama;
+package mitonize.datastore;
 
 import java.nio.ByteBuffer;
-
-import mitonize.datastore.OperationFailedException;
 
 /**
  * Okuyamaに保管する値を圧縮するためのクラスのための抽象クラス。圧縮アルゴリズムは値の容量や
@@ -59,8 +57,8 @@ public abstract class Compressor {
 		buf[2] = (byte) getCompressorId();
 	}
 	
-	abstract int getCompressorId();
-	abstract ByteBuffer compress(byte[] serialized);
-	abstract ByteBuffer compress(byte[] serialized, int offset, int length);
-	abstract ByteBuffer decompress(byte[] b, int offset, int length) throws OperationFailedException;
+	abstract public int getCompressorId();
+	abstract public ByteBuffer compress(byte[] serialized);
+	abstract public ByteBuffer compress(byte[] serialized, int offset, int length);
+	abstract public ByteBuffer decompress(byte[] b, int offset, int length) throws OperationFailedException;
 }

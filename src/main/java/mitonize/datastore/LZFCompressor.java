@@ -1,8 +1,6 @@
-package mitonize.datastore.okuyama;
+package mitonize.datastore;
 
 import java.nio.ByteBuffer;
-
-import mitonize.datastore.OperationFailedException;
 
 import com.ning.compress.CompressionFormatException;
 import com.ning.compress.lzf.LZFDecoder;
@@ -29,7 +27,7 @@ public class LZFCompressor extends Compressor {
 	}
 	
 	@Override
-	int getCompressorId() {
+	public int getCompressorId() {
 		return COMPRESSOR_ID;
 	}
 

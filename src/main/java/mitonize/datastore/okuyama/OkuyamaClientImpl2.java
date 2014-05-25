@@ -13,6 +13,8 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 
 import mitonize.datastore.Base64;
+import mitonize.datastore.Compressor;
+import mitonize.datastore.JdkDeflaterCompressor;
 import mitonize.datastore.KeyValueConsistencyException;
 import mitonize.datastore.OperationFailedException;
 import mitonize.datastore.Pair;
@@ -26,8 +28,9 @@ import org.slf4j.LoggerFactory;
 public class OkuyamaClientImpl2 implements OkuyamaClient {
 	Logger logger = LoggerFactory.getLogger(OkuyamaClientImpl2.class);
 	
-	static final char VALUE_SEPARATOR = ',';
-	static final int BLOCK_SIZE = 8192;
+	private static final char VALUE_SEPARATOR = ',';
+	private static final int BLOCK_SIZE = 8192;
+	private static final int DEFAULT_COMPRESSOR_ID = JdkDeflaterCompressor.COMPRESSOR_ID;
 
 	SocketManager socketManager;
 	Charset cs;
@@ -51,7 +54,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		this.base64Key = base64Key;
 		this.serializeString = serializeString;
 		if (doCompress) {
-			this.compressor = Compressor.getCompressor(JdkDeflaterCompressor.COMPRESSOR_ID);
+			this.compressor = Compressor.getCompressor(DEFAULT_COMPRESSOR_ID);
 		}
 	}
 
