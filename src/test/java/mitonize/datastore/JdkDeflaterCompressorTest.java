@@ -1,6 +1,7 @@
-package mitonize.datastore.okuyama;
+package mitonize.datastore;
 
-import static org.junit.Assert.*;
+import static org.junit.Assert.assertArrayEquals;
+import static org.junit.Assert.fail;
 
 import java.io.ByteArrayOutputStream;
 import java.io.IOException;
@@ -9,15 +10,10 @@ import java.io.UnsupportedEncodingException;
 import java.nio.ByteBuffer;
 import java.util.HashMap;
 
-import mitonize.datastore.Compressor;
-import mitonize.datastore.JdkDeflaterCompressor;
-import mitonize.datastore.LZFCompressor;
-import mitonize.datastore.OperationFailedException;
-
 import org.junit.Before;
 import org.junit.Test;
 
-public class CompressorTest {
+public class JdkDeflaterCompressorTest {
 	Compressor compressor;
 
 	@Before
