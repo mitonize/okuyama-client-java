@@ -22,7 +22,7 @@ public class OkuyamaClientPerformanceITCase {
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
 		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"/*, "127.0.0.1:8889"*/}, 6, compatibility, verbose);
-		factory.setComressionMode(true);
+		factory.setCompressionMode(true);
 	}
 	
 	void log(String method, Object ... msg) {
@@ -72,7 +72,7 @@ public class OkuyamaClientPerformanceITCase {
 	@Test
 	//@Ignore
 	public void test1_7_multithread() throws IOException, OperationFailedException, InterruptedException {
-		factory.setComressionMode(false);
+		factory.setCompressionMode(false);
 		ArrayList<Thread> threads = new ArrayList<Thread>();
 		for (int i = 0; i < 6; ++i) {
 			Thread thread = new Thread(new Load("key" + i));

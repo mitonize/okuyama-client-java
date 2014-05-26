@@ -14,6 +14,11 @@ import java.nio.ByteBuffer;
 public abstract class Compressor {
 	static final int MAX_COMPRESSORS = 4;
 	static private Compressor[] list = new Compressor[MAX_COMPRESSORS];
+	static {
+		/* register built-in compressor */
+		Compressor.registerCompressor(new JdkDeflaterCompressor());
+		Compressor.registerCompressor(new LZFCompressor());
+	}
 
 	/**
 	 * <ul>
@@ -44,10 +49,10 @@ public abstract class Compressor {
 		return null;
 	}
 
-	protected void registerCompressor() {
-		int id = getCompressorId();
+	public static void registerCompressor(Compressor compressor) {
+		int id = compressor.getCompressorId();
 		if (id < MAX_COMPRESSORS) {
-			list[id] = this;
+			list[id] = compressor;
 		}
 	}
 

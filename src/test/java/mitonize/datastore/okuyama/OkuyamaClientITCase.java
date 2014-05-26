@@ -32,7 +32,7 @@ public class OkuyamaClientITCase {
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
 		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"/*, "127.0.0.1:8889"*/}, 6, compatibility, verbose);
-		factory.setComressionMode(true);
+		factory.setCompressionMode(true);
 	}
 	
 	void log(String method, Object ... msg) {
@@ -103,7 +103,7 @@ public class OkuyamaClientITCase {
 	@Ignore
 	public void test1_4_largedata_over() throws IOException, OperationFailedException {
 		boolean doCompress = factory.isCompressionMode();		
-		factory.setComressionMode(false);
+		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
 	
@@ -119,7 +119,7 @@ public class OkuyamaClientITCase {
 			fail("Exception must be thrown");
 		} catch (OperationFailedException e) {
 		} finally {
-			factory.setComressionMode(doCompress);
+			factory.setCompressionMode(doCompress);
 		}
 	}
 
@@ -127,7 +127,7 @@ public class OkuyamaClientITCase {
 //	@Ignore
 	public void test1_4_largedata_muchover() throws IOException, OperationFailedException {
 		boolean doCompress = factory.isCompressionMode();		
-		factory.setComressionMode(false);
+		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
 	
@@ -145,7 +145,7 @@ public class OkuyamaClientITCase {
 			} catch (OperationFailedException e) {
 			}
 		} finally {
-			factory.setComressionMode(doCompress);
+			factory.setCompressionMode(doCompress);
 		}
 	}
 
@@ -153,7 +153,7 @@ public class OkuyamaClientITCase {
 //	@Ignore
 	public void test1_4_largedata_just() throws IOException, OperationFailedException {
 		boolean doCompress = factory.isCompressionMode();		
-		factory.setComressionMode(false);
+		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
 	
@@ -168,14 +168,14 @@ public class OkuyamaClientITCase {
 			boolean ret = client.setObjectValue("HOGE2", verylargevalue, null, 0);
 			assertTrue(ret);
 		} finally {
-			factory.setComressionMode(doCompress);
+			factory.setCompressionMode(doCompress);
 		}
 	}
 
 	@Test
 	public void test1_4_largedata64k() throws IOException, OperationFailedException {
 		boolean doCompress = factory.isCompressionMode();		
-		factory.setComressionMode(false);
+		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
 	
@@ -185,7 +185,7 @@ public class OkuyamaClientITCase {
 			boolean ret = client.setObjectValue("HOGE2_0", verylargevalue, null, 0);
 			assertTrue(ret);
 		} finally {
-			factory.setComressionMode(doCompress);
+			factory.setCompressionMode(doCompress);
 		}
 	}
 	

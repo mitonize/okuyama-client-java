@@ -13,8 +13,8 @@ import java.nio.charset.Charset;
 import java.util.ArrayList;
 
 import mitonize.datastore.Base64;
+import mitonize.datastore.CompressionStrategy;
 import mitonize.datastore.Compressor;
-import mitonize.datastore.JdkDeflaterCompressor;
 import mitonize.datastore.KeyValueConsistencyException;
 import mitonize.datastore.OperationFailedException;
 import mitonize.datastore.Pair;
@@ -30,7 +30,6 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	
 	private static final char VALUE_SEPARATOR = ',';
 	private static final int BLOCK_SIZE = 8192;
-	private static final int DEFAULT_COMPRESSOR_ID = JdkDeflaterCompressor.COMPRESSOR_ID;
 
 	SocketManager socketManager;
 	Charset cs;
@@ -38,8 +37,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	boolean serializeString = false;
 	ByteBuffer buffer;
 
-	private Compressor compressor;
-
+	private CompressionStrategy compressionStrategy;
+	
 	/**
 	 * OkuyamaClient インスタンスを生成する。
 	 * 
@@ -47,15 +46,13 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64Key キーをBase64エンコードする。
 	 * @param serializeString 値に文字列を保管するときにシリアライズするなら true。 falseなら文字列をUTF-8でBase64エンコードする。
 	 */
-	public OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString, boolean doCompress) {
+	OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString, CompressionStrategy compressionStrategy) {
 		this.cs = Charset.forName("UTF-8");
 		this.buffer = ByteBuffer.allocate(BLOCK_SIZE);
 		this.socketManager = socketManager;
 		this.base64Key = base64Key;
 		this.serializeString = serializeString;
-		if (doCompress) {
-			this.compressor = Compressor.getCompressor(DEFAULT_COMPRESSOR_ID);
-		}
+		setCompressionStrategy(compressionStrategy);
 	}
 
 	/**
@@ -142,7 +139,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param obj オブジェクト
 	 * @throws IOException シリアライズできない場合
 	 */
-	void appendSerializedObjectBase64(OutputStream os, Object obj) throws IOException {
+	void appendSerializedObjectBase64(OutputStream os, Object obj, String key) throws IOException {
 		if (obj == null) {
 			appendString(os, "(B)", false);
 			return;
@@ -154,7 +151,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 		byte[] serialized = baos.toByteArray();
 		ByteBuffer b;
-		if (serialized.length > 32 && compressor != null) {
+		Compressor compressor = null;
+		if (compressionStrategy != null) {
+			compressor = compressionStrategy.getSuitableCompressor(key, serialized.length);
+		}
+
+		if (compressor != null) {
 			b = compressor.compress(serialized);
 		} else {
 			b = ByteBuffer.wrap(serialized);
@@ -574,7 +576,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			if (!serializeString && (value instanceof String)) {
 				appendString(os, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(os, value);
+				appendSerializedObjectBase64(os, value, key);
 			}
 			appendNumber(os, age);
 			appendSeparator(os);
@@ -768,7 +770,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			if (!serializeString && (value instanceof String)) {
 				appendString(os, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(os, value);
+				appendSerializedObjectBase64(os, value, key);
 			}
 			appendNumber(os, age);
 			appendSeparator(os);
@@ -1023,7 +1025,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			if (!serializeString && (value instanceof String)) {
 				appendString(os, (String) value, true);				
 			} else {
-				appendSerializedObjectBase64(os, value);
+				appendSerializedObjectBase64(os, value, key);
 			}
 //			appendNumber(channel, 0);
 			appendString(os, version, false);
@@ -1121,5 +1123,9 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			}
 			socketManager.recycle(socket);
 		}
+	}
+
+	public void setCompressionStrategy(CompressionStrategy compressionStrategy) {
+		this.compressionStrategy = compressionStrategy;
 	}
 }

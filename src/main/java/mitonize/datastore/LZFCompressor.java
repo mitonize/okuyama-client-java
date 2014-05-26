@@ -19,11 +19,10 @@ public class LZFCompressor extends Compressor {
 	public static final int COMPRESSOR_ID = 1;
 	
 	byte[] HEADER;
-	
+
 	public LZFCompressor() {
 		HEADER = new byte[3];
 		writeMagicBytes(HEADER);
-		registerCompressor();
 	}
 	
 	@Override

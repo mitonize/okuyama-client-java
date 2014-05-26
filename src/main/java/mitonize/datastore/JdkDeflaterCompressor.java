@@ -23,7 +23,6 @@ public class JdkDeflaterCompressor extends Compressor {
 	public JdkDeflaterCompressor() {
 		deflaters = new ArrayBlockingQueue<>(POOL_SIZE);
 		inflaters = new ArrayBlockingQueue<>(POOL_SIZE);
-		registerCompressor();
 	}
 	
 	private Deflater getDeflater() {

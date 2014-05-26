@@ -11,6 +11,7 @@ import java.util.HashMap;
 
 import mitonize.datastore.Compressor;
 import mitonize.datastore.JdkDeflaterCompressor;
+import mitonize.datastore.LZFCompressor;
 import mitonize.datastore.OperationFailedException;
 
 import org.junit.Before;
