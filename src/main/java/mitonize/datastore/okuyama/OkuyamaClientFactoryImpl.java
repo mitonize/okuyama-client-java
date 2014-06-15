@@ -8,6 +8,7 @@ import mitonize.datastore.SocketManager;
 import mitonize.datastore.TextDumpFilterStreamFactory;
 
 public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
+	private static CompressionStrategy DEFAULT_COMPRESSION_STRATEGY = new DefaultCompressionStrategy();
 
 	SocketManager socketManager;
 	boolean compatibilityMode = true;
@@ -151,6 +152,26 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 	 */
 	public void setCompressionStrategy(CompressionStrategy compressionStrategy) {
 		this.compressionStrategy = compressionStrategy;
+	}
+
+	/**
+	 * 圧縮モードを取得する。
+	 * @return 圧縮する場合はtrue
+	 */
+	public boolean isCompressionMode() {
+		return compressionStrategy != null;
+	}
+
+	/**
+	 * 圧縮モードを設定する。圧縮する場合はデフォルトの圧縮戦略{@link DefaultCompressionStrategy}が利用される。
+	 * @param doCompress 圧縮する場合はtrue
+	 */
+	public void setCompressionMode(boolean doCompress) {
+		if (doCompress) {
+			this.compressionStrategy = DEFAULT_COMPRESSION_STRATEGY;
+		} else {
+			this.compressionStrategy = null;
+		}
 	}
 
 	/**
