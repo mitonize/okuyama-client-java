@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>mitonize</groupId>
 	<artifactId>okuyama-client-java</artifactId>
-	<version>1.0.6</version>
+	<version>1.1</version>
 	<url>https://github.com/mitonize/okuyama-client-java</url>
 	<description>Yet another client Java library connecting to Okuyama, a key-value storage middle ware.</description>
 	<name>Java client library for Okuyama KVS</name>
@@ -22,21 +22,16 @@
 						<exclude>**/*ITCase.java</exclude>
 					</excludes>
 				</configuration>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
 				<executions>
 					<execution>
-						<id>integration-test</id>
 						<goals>
-							<goal>test</goal>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
 						</goals>
-						<phase>integration-test</phase>
-						<configuration>
-							<excludes>
-								<exclude>none</exclude>
-							</excludes>
-							<includes>
-								<include>**/*ITCase.java</include>
-							</includes>
-						</configuration>
 					</execution>
 				</executions>
 			</plugin>
@@ -62,8 +57,8 @@
 	</dependencies>
 	<licenses>
 		<license>
-			<name>Apache License Version 2.0</name>
-			<url>http://www.apache.org/licenses/</url>
+			<name>The Apache Software License, Version 2.0</name>
+			<url>http://www.apache.org/licenses/LICENSE-2.0.txt</url>
 			<distribution>repo</distribution>
 		</license>
 	</licenses>

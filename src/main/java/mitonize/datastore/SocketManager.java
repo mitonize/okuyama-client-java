@@ -10,7 +10,6 @@ import java.net.InetSocketAddress;
 import java.net.Socket;
 import java.net.UnknownHostException;
 import java.nio.channels.UnresolvedAddressException;
-import java.nio.charset.Charset;
 import java.util.concurrent.ArrayBlockingQueue;
 import java.util.concurrent.Executors;
 import java.util.concurrent.ScheduledExecutorService;
@@ -88,6 +87,11 @@ public class SocketManager {
 	 * 直近で新規に開いたソケットをプールに格納した時刻。初期値は0。
 	 */
 	long timestampLatelyPooled = 0;
+
+	/**
+	 * 同時に開いているソケットの最大値。
+	 */
+	int maxCountOfCoucurrentSockets = 0;
 
 	/**
 	 * オフライン状態になったエンドポイントがオンラインになったかをバックグラウンドで検査してオンライン状態にするExecutor。
@@ -284,6 +288,9 @@ public class SocketManager {
 				if (c <= maxPoolSize) {
 					timestampLatelyPooled = s.timestamp;
 				}
+				if (c > maxCountOfCoucurrentSockets) {
+					maxCountOfCoucurrentSockets = c;
+				}
 				if (logger.isInfoEnabled()) {
 					logger.info("Socket opened - {}:{} count:{}", endpoint.address.getHostName(), endpoint.port, c);
 				}
@@ -348,6 +355,10 @@ public class SocketManager {
 
 	public int getMaxPoolSize() {
 		return maxPoolSize;
+	}
+
+	public int getMaxCoucurrentSockets() {
+		return maxCountOfCoucurrentSockets;
 	}
 
 	public void setDumpFilterStreamFactory(

@@ -10,7 +10,7 @@
 	</appender>
 
 	<category name="mitonize.datastore.SocketManager" additivity="false" >
-		<priority value="info" />
+		<priority value="warn" />
 		<appender-ref ref="stdout" />
 	</category>
 	<root>
