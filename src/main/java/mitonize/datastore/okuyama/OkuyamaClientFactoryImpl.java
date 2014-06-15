@@ -9,18 +9,16 @@ import mitonize.datastore.TextDumpFilterStreamFactory;
 
 public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 
-	private static CompressionStrategy DEFAULT_COMPRESSION_STRATEGY = new DefaultCompressionStrategy();
-
 	SocketManager socketManager;
 	boolean compatibilityMode = true;
-	private CompressionStrategy compressionStrategy;
+	private CompressionStrategy compressionStrategy = null;
 	private boolean base64key = true;
-	private boolean serializeString = true;
+	private boolean serializeString = false;
 
 	@Override
 	public OkuyamaClient createClient() {
 		OkuyamaClientImpl2 okuyamaClient;
-		okuyamaClient = new OkuyamaClientImpl2(socketManager, base64key, serializeString, compressionStrategy);
+		okuyamaClient = new OkuyamaClientImpl2(socketManager, base64key, serializeString || compatibilityMode, compressionStrategy);
 		return okuyamaClient;
 	}
 
@@ -123,46 +121,68 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 		setCompatibilityMode(compatibilityMode);
 	}
 
+	/**
+	 * 互換モードが設定されているかを確認する。
+	 * @return 互換モードに設定されているなら true
+	 */
 	public boolean isCompatibilityMode() {
 		return compatibilityMode;
 	}
 
+	/**
+	 * 互換モードを設定する。
+	 * @param compatibilityMode 互換モードに設定するなら true
+	 */
 	public void setCompatibilityMode(boolean compatibilityMode) {
 		this.compatibilityMode = compatibilityMode;
 	}
 
-	public boolean isCompressionMode() {
-		return compressionStrategy != null;
-	}
-
-	public void setCompressionMode(boolean doCompress) {
-		if (doCompress) {
-			this.compressionStrategy = DEFAULT_COMPRESSION_STRATEGY;
-		} else {
-			this.compressionStrategy = null;
-		}
-	}
-
+	/**
+	 * 圧縮戦略を取得する。
+	 * @return 設定されている圧縮戦略。未設定ならnull
+	 */
 	public CompressionStrategy getCompressionStrategy() {
 		return compressionStrategy;
 	}
 
+	/**
+	 * 圧縮戦略を設定する。簡易的なものは{@link DefaultCompressionStrategy}で提供される。設定を解除する場合はnullを設定する。
+	 * @param compressionStrategy 圧縮戦略。解除する場合はnull
+	 */
 	public void setCompressionStrategy(CompressionStrategy compressionStrategy) {
 		this.compressionStrategy = compressionStrategy;
 	}
 
+	/**
+	 * キーをBase64でエンコードするかを返す。
+	 * @return キーをBase64でエンコードするならtrue
+	 */
 	public boolean isBase64key() {
 		return base64key;
 	}
 
+	/**
+	 * キーをBase64でエンコードする設定をする。(デフォルト:true)
+	 * @param キーをBase64でエンコードするならtrue
+	 */
 	public void setBase64key(boolean base64key) {
 		this.base64key = base64key;
 	}
 
+	/**
+	 * 文字列を格納する際にJavaのシリアライズをするかを返す。
+	 * @return 文字列を格納する際にJavaのシリアライズをするならtrue
+	 */
 	public boolean isSerializeString() {
 		return serializeString;
 	}
 
+	/**
+	 * 文字列を格納する際にJavaのシリアライズをするかを設定する。(デフォルト:false)
+	 * 互換モードが設定されている場合は強制的にシリアライズされる。
+	 * 
+	 * @return 文字列を格納する際にJavaのシリアライズをするならtrue
+	 */
 	public void setSerializeString(boolean serializeString) {
 		this.serializeString = serializeString;
 	}

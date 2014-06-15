@@ -34,6 +34,13 @@ When you use client instance, call factory.createClient(). This instance is supp
 ```java
 OkuyamaClient client = factory.createClient();
 ```
+## Compatibility 
+###
+互換モードを指定すると、オリジナルのOkuyamaClientからでも読み出し可能な形式で格納するように下の設定でクライアントを生成する。
+
+* キーを必ずbase64エンコードする
+* 文字列を格納する場合にもJavaのシリアライズを行ってからBase64エンコードする
+* 圧縮しない（圧縮戦略を設定すると例外を発生させる）
 
 ## Compression
 ### Implementing CompressionStrategy
