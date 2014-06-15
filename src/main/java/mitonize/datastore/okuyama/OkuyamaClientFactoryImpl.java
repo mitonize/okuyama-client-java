@@ -7,10 +7,11 @@ import mitonize.datastore.DefaultCompressionStrategy;
 import mitonize.datastore.SocketManager;
 import mitonize.datastore.TextDumpFilterStreamFactory;
 
-public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
+public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	private static CompressionStrategy DEFAULT_COMPRESSION_STRATEGY = new DefaultCompressionStrategy();
 
-	SocketManager socketManager;
+	private SocketManager socketManager;
+
 	boolean compatibilityMode = true;
 	private CompressionStrategy compressionStrategy = null;
 	private boolean base64key = true;
@@ -108,18 +109,17 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 	 * @param dumpStream 入出力のストリームをダンプする(主にデバッグ用)
 	 * @param compressionStrategy 圧縮戦略
 	 * @throws UnknownHostException 指定したホスト名のIPアドレスが取得できない場合
-	 * @throws IllegalArgumentException 指定したホストの形式が不正の場合
+	 * @throws IllegalArgumentException 指定したホストの形式が不正の場合、互換モードを指定しているにもかかわらず圧縮戦略を指定した場合
 	 */
 	public OkuyamaClientFactoryImpl(String[] masternodes, int minPoolSize, boolean compatibilityMode, boolean dumpStream, CompressionStrategy compressionStrategy) throws UnknownHostException {
-		super.setMasterNodes(masternodes);
 		socketManager = new SocketManager(masternodes, minPoolSize);
 		if (dumpStream) {
 			TextDumpFilterStreamFactory dumpFilterStreamFactory = new TextDumpFilterStreamFactory();
 			socketManager.setDumpFilterStreamFactory(dumpFilterStreamFactory);
 		}
 
-		setCompressionStrategy(compressionStrategy);
 		setCompatibilityMode(compatibilityMode);
+		setCompressionStrategy(compressionStrategy);
 	}
 
 	/**
@@ -131,10 +131,14 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 	}
 
 	/**
-	 * 互換モードを設定する。
+	 * 互換モードを設定する。trueが設定された場合は圧縮は無効化される。
+	 * 
 	 * @param compatibilityMode 互換モードに設定するなら true
 	 */
 	public void setCompatibilityMode(boolean compatibilityMode) {
+		if (compatibilityMode) {
+			setCompressionMode(false);
+		}
 		this.compatibilityMode = compatibilityMode;
 	}
 
@@ -151,6 +155,9 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 	 * @param compressionStrategy 圧縮戦略。解除する場合はnull
 	 */
 	public void setCompressionStrategy(CompressionStrategy compressionStrategy) {
+		if (compatibilityMode && compressionStrategy != null) {
+			throw new IllegalArgumentException("Compression is not supported in compatible mode");
+		}
 		this.compressionStrategy = compressionStrategy;
 	}
 
@@ -208,4 +215,71 @@ public class OkuyamaClientFactoryImpl extends OkuyamaClientFactory {
 		this.serializeString = serializeString;
 	}
 
+	/* DELEGATED METHODS */
+	/**
+	 * 保持するソケットの最大数を取得する。
+	 * 一時的に同時利用ソケット数がこの上限値を超える場合があるが、同時使用数が落ち着くと、
+	 * この上限数分のソケットは切断されずに保持される。
+	 */
+	public int getMaxPoolSize() {
+		return socketManager.getMaxPoolSize();
+	}
+
+	/**
+	 * 同時に開いたソケットの最大値を取得する。
+	 * @return 同時に開いたソケットの最大値
+	 */
+	public int getMaxCoucurrentSockets() {
+		return socketManager.getMaxCoucurrentSockets();
+	}
+
+	/**
+	 * ソケットの読み取りタイムアウト時間(ミリ秒)を取得する。
+	 * @return ソケットの読み取りタイムアウト時間(ミリ秒)
+	 */
+	public int getTimeoutToReadInMillis() {
+		return socketManager.getTimeoutToReadInMillis();
+	}
+
+	/**
+	 * ソケットの読み取りタイムアウト時間(ミリ秒)を設定する(デフォルト:1000ミリ秒)
+	 * @param timeoutToReadInMillis ソケットの読み取りタイムアウト時間(ミリ秒)
+	 */
+	public void setTimeoutToReadInMillis(int timeoutToReadInMillis) {
+		socketManager.setTimeoutToReadInMillis(timeoutToReadInMillis);
+	}
+
+	/**
+	 * TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)を取得する。
+	 * @return TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)
+	 */
+	public int getTimeoutToConnectInMillis() {
+		return socketManager.getTimeoutToConnectInMillis();
+	}
+
+	/**
+	 * TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)を設定する(デフォルト:1000ミリ秒)。
+	 * @param timeoutToConnectInMillis TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)
+	 */
+	public void setTimeoutToConnectInMillis(int timeoutToConnectInMillis) {
+		socketManager.setTimeoutToConnectInMillis(timeoutToConnectInMillis);
+	}
+
+	/**
+	 * オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)を取得
+	 * @return オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)
+	 */
+	public int getDelayToMarkOnlineInMillis() {
+		return socketManager.getDelayToMarkOnlineInMillis();
+	}
+
+	/**
+	 * オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)を設定する(デフォルト:3000ミリ秒)。
+	 * TCPポートが開いてから実際に待ち受け可能になるまで時間がかかるサーバの場合に指定する。
+	 * 不要な場合は0でよい。
+	 * @param delayToMarkOnlineInMillis オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)
+	 */
+	public void setDelayToMarkOnlineInMillis(int delayToMarkOnlineInMillis) {
+		socketManager.setDelayToMarkOnlineInMillis(delayToMarkOnlineInMillis);
+	}
 }

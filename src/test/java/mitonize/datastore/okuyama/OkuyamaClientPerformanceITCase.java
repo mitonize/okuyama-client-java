@@ -16,7 +16,7 @@ import org.slf4j.LoggerFactory;
 public class OkuyamaClientPerformanceITCase {
 	static Logger logger = LoggerFactory.getLogger(OkuyamaClientPerformanceITCase.class);
 	static OkuyamaClientFactoryImpl factory;
-	static boolean compatibility = true;
+	static boolean compatibility = false;
 	static boolean verbose = false;//logger.isTraceEnabled();
 	
 	@BeforeClass
