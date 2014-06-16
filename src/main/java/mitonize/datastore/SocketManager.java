@@ -103,17 +103,17 @@ public class SocketManager {
 	 * TCPポートが開いてから実際に待ち受け可能になるまで時間がかかるサーバの場合に指定する。
 	 * 不要な場合は0でよい。
 	 */
-	int delayToMarkOnlineInMillis = 3000;
+	private int delayToMarkOnlineInMillis = 3000;
 
 	/**
 	 * TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)。
 	 */
-	int timeoutToConnectInMillis = 1000;
+	private int timeoutToConnectInMillis = 1000;
 
 	/**
 	 * ソケットの読み取りタイムアウト時間(ミリ秒)。
 	 */
-	int timeoutToReadInMillis = 1000;
+	private int timeoutToReadInMillis = 1000;
 
 	/**
 	 * オープンしているソケット、入出力ストリームをプールするためのキュー。
@@ -136,10 +136,14 @@ public class SocketManager {
 		this.activeSocketCount = new AtomicInteger(0);
 		this.currentEndpointIndex = new AtomicInteger(0);
 		this.maxPoolSize = maxPoolSize;
-		this.endpoints = new Endpoint[masternodes.length];
-		for (int i = 0; i < masternodes.length; ++i) {
-			String hostname = masternodes[i].split(":")[0];
-			int port = Integer.parseInt(masternodes[i].split(":")[1]); // May throws NumberFormatException
+		setEndpoints(masternodes);
+	}
+
+	private void setEndpoints(String[] nodes) throws UnknownHostException {
+		this.endpoints = new Endpoint[nodes.length];
+		for (int i = 0; i < nodes.length; ++i) {
+			String hostname = nodes[i].split(":")[0];
+			int port = Integer.parseInt(nodes[i].split(":")[1]); // May throws NumberFormatException
 			
 			if (!hostname.matches("[\\d\\w.]+")) {
 				throw new IllegalArgumentException("hostname contains illegal character. " + hostname);
@@ -201,8 +205,8 @@ public class SocketManager {
 		}
 		@Override
 		public void run() {
-			int timeout = timeoutToConnectInMillis;
-			int delay = delayToMarkOnlineInMillis;
+			int timeout = getTimeoutToConnectInMillis();
+			int delay = getDelayToMarkOnlineInMillis();
 			InetSocketAddress address = new InetSocketAddress(endpoint.address, endpoint.port);
 			Socket socket = new Socket();
 			try {
@@ -364,5 +368,55 @@ public class SocketManager {
 	public void setDumpFilterStreamFactory(
 			DumpFilterStreamFactory dumpFilterStreamFactory) {
 		this.dumpFilterStreamFactory = dumpFilterStreamFactory;
+	}
+
+	/**
+	 * ソケットの読み取りタイムアウト時間(ミリ秒)を取得する。
+	 * @return ソケットの読み取りタイムアウト時間(ミリ秒)
+	 */
+	public int getTimeoutToReadInMillis() {
+		return timeoutToReadInMillis;
+	}
+
+	/**
+	 * ソケットの読み取りタイムアウト時間(ミリ秒)を設定する(デフォルト:1000ミリ秒)
+	 * @param timeoutToReadInMillis ソケットの読み取りタイムアウト時間(ミリ秒)
+	 */
+	public void setTimeoutToReadInMillis(int timeoutToReadInMillis) {
+		this.timeoutToReadInMillis = timeoutToReadInMillis;
+	}
+
+	/**
+	 * TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)を取得する。
+	 * @return TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)
+	 */
+	public int getTimeoutToConnectInMillis() {
+		return timeoutToConnectInMillis;
+	}
+
+	/**
+	 * TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)を設定する(デフォルト:1000ミリ秒)。
+	 * @param timeoutToConnectInMillis TCP接続が確立するかどうか確認するときのコネクションタイムアウト時間(ミリ秒)
+	 */
+	public void setTimeoutToConnectInMillis(int timeoutToConnectInMillis) {
+		this.timeoutToConnectInMillis = timeoutToConnectInMillis;
+	}
+
+	/**
+	 * オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)を取得
+	 * @return オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)
+	 */
+	public int getDelayToMarkOnlineInMillis() {
+		return delayToMarkOnlineInMillis;
+	}
+
+	/**
+	 * オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)を設定する(デフォルト:3000ミリ秒)。
+	 * TCPポートが開いてから実際に待ち受け可能になるまで時間がかかるサーバの場合に指定する。
+	 * 不要な場合は0でよい。
+	 * @param delayToMarkOnlineInMillis オフライン状態からTCP接続が確立後にオンラインにするまでに待つ時間(ミリ秒)
+	 */
+	public void setDelayToMarkOnlineInMillis(int delayToMarkOnlineInMillis) {
+		this.delayToMarkOnlineInMillis = delayToMarkOnlineInMillis;
 	}
 }

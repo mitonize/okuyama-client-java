@@ -26,7 +26,7 @@ import org.slf4j.LoggerFactory;
 public class OkuyamaClientITCase {
 	static Logger logger = LoggerFactory.getLogger(OkuyamaClientITCase.class);
 	static OkuyamaClientFactoryImpl factory;
-	static boolean compatibility = true;
+	static boolean compatibility = false;
 	static boolean verbose = false;//logger.isTraceEnabled();
 	
 	@BeforeClass
