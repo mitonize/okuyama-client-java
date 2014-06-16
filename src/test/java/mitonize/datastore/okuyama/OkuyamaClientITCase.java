@@ -27,7 +27,7 @@ public class OkuyamaClientITCase {
 	static Logger logger = LoggerFactory.getLogger(OkuyamaClientITCase.class);
 	static OkuyamaClientFactoryImpl factory;
 	static boolean compatibility = false;
-	static boolean verbose = true;//logger.isTraceEnabled();
+	static boolean verbose = false;//logger.isTraceEnabled();
 	
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
