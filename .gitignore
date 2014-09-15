@@ -32,6 +32,7 @@ Thumbs.db
 target
 build
 bin
+site/
 
 *.class
 
