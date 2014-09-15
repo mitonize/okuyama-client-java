@@ -1,6 +1,8 @@
 package mitonize.datastore;
 
 import java.nio.ByteBuffer;
+import java.util.zip.Deflater;
+import java.util.zip.Inflater;
 
 import com.ning.compress.CompressionFormatException;
 import com.ning.compress.lzf.LZFDecoder;
@@ -12,7 +14,7 @@ import com.ning.compress.lzf.LZFEncoder;
  * than {@code}{@link Deflater}{@code} and {@code}{@link Inflater}{@code},
  *  but compressed size is larger about 40-50% than that by them.
  *  
- *  @see https://github.com/ning/compress
+ *  @see <a href="https://github.com/ning/compress">https://github.com/ning/compress</a>
  *  @since 1.0.7
  */
 public class LZFCompressor extends Compressor {

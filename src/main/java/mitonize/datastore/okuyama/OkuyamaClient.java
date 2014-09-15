@@ -115,7 +115,7 @@ public interface OkuyamaClient {
 	 * シリアライズされたオブジェクトがクラスが見つからないなどの原因でデシリアライズできなかった場合は
 	 * ClassNotFoundException を値として返す。
 	 * 
-	 * @param tags タグ文字列の配列。未設定の場合はnullを指定。
+	 * @param tag タグ文字列の配列。未設定の場合はnullを指定。
 	 * @return 値オブジェクト。nullも指定可。
 	 * @throws IOException 
 	 * @throws OperationFailedException 操作が成功しなかった場合

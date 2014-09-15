@@ -21,8 +21,8 @@ public class JdkDeflaterCompressor extends Compressor {
 	byte[] allocatedBytesDecompress = new byte[BLOCK_SIZE_DECOMPRESS];
 
 	public JdkDeflaterCompressor() {
-		deflaters = new ArrayBlockingQueue<>(POOL_SIZE);
-		inflaters = new ArrayBlockingQueue<>(POOL_SIZE);
+		deflaters = new ArrayBlockingQueue<Deflater>(POOL_SIZE);
+		inflaters = new ArrayBlockingQueue<Inflater>(POOL_SIZE);
 	}
 	
 	private Deflater getDeflater() {
@@ -100,9 +100,6 @@ public class JdkDeflaterCompressor extends Compressor {
 				}
 			}
 			return ByteBuffer.wrap(z, 0, compressed);
-		} catch (Exception e) {
-			e.printStackTrace();
-			throw e;
 		} finally {
 			if (deflater != null) {
 				recycleDeflater(deflater);
