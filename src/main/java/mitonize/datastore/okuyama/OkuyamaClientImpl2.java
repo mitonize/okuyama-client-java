@@ -372,10 +372,11 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 */
 	Object nextObject(InputStream is) throws IOException, ClassNotFoundException, OperationFailedException  {
 		ByteBuffer bytes = ByteBuffer.allocate(BLOCK_SIZE);
+		byte ch = 0;
 		while (true) {
 			try {
 				while (buffer.hasRemaining()) {
-					byte ch = buffer.get();
+					ch = buffer.get();
 					if (ch == VALUE_SEPARATOR || ch == '\n') {
 						bytes.flip();
 						if (bytes.limit() == 0) {
@@ -390,19 +391,21 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 						bytes.put(ch);
 					}
 				}
+				buffer.clear();
+				int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
+				buffer.position(buffer.position() + read);
+				if (read == 0) {
+					throw new OperationFailedException("buffer underflow");
+				}
+				buffer.flip();
 			} catch (BufferOverflowException e) {
 				// 足りなくなれば追加
 				ByteBuffer newBytes = ByteBuffer.allocate(bytes.capacity() + BLOCK_SIZE);
+				bytes.flip();
 				newBytes.put(bytes);
 				bytes = newBytes;
+				bytes.put(ch);
 			}
-			buffer.clear();
-			int read = is.read(buffer.array(), buffer.arrayOffset() + buffer.position(), buffer.remaining());
-			buffer.position(buffer.position() + read);
-			if (read == 0) {
-				throw new OperationFailedException("buffer underflow");
-			}
-			buffer.flip();
 		}
 	}
 	
