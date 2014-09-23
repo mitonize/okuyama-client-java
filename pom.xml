@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>mitonize</groupId>
 	<artifactId>okuyama-client-java</artifactId>
-	<version>1.1.1</version>
+	<version>1.1.2</version>
 	<url>https://github.com/mitonize/okuyama-client-java</url>
 	<description>Yet another client Java library connecting to Okuyama, a key-value storage middle ware.</description>
 	<name>Java client library for Okuyama KVS</name>
@@ -13,6 +13,25 @@
 		<maven.compiler.target>1.7</maven.compiler.target>
 	</properties>
 	<build>
+		<pluginManagement>
+			<plugins>
+				<plugin>
+					<groupId>org.apache.maven.plugins</groupId>
+					<artifactId>maven-javadoc-plugin</artifactId>
+					<version>2.9.1</version>
+					<configuration>
+						<source>1.7</source>
+						<encoding>UTF-8</encoding>
+						<docencoding>UTF-8</docencoding>
+						<charset>UTF-8</charset>
+						<quiet />
+						<links>
+							<link>http://docs.oracle.com/javase/7/docs/api/</link>
+						</links>
+					</configuration>
+				</plugin>
+			</plugins>
+		</pluginManagement>
 		<plugins>
 			<plugin>
 				<groupId>org.apache.maven.plugins</groupId>
@@ -35,8 +54,29 @@
 					</execution>
 				</executions>
 			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+				<executions>
+					<execution>
+						<id>attach-javadocs</id>
+						<goals>
+							<goal>jar</goal>
+						</goals>
+					</execution>
+				</executions>
+			</plugin>
 		</plugins>
 	</build>
+	<reporting>
+		<outputDirectory>site</outputDirectory>
+		<plugins>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-javadoc-plugin</artifactId>
+			</plugin>
+		</plugins>
+	</reporting>
 	<dependencies>
 		<dependency>
 			<groupId>junit</groupId>

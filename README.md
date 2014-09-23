@@ -12,6 +12,7 @@ Java client library for Okuyama KVS
 * Adaptive value serialization form. Encoding base64 for serializable object.  
 
 ## Usage
+For detail, see [Javadoc](http://mitonize.github.io/okuyama-client-java/site/apidocs/index.html)
 
 At first, create OkuyamaClientFactory and specify endpoints and pool size.
 OkuyamaClientFactory can be held through application life time.

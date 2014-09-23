@@ -33,7 +33,7 @@ public class LZFCompressorTest {
 
 	@Test
 	public void testSerizlisedObjectMedium() throws IOException {
-		HashMap<String, Object> map = new HashMap<>();
+		HashMap<String, Object> map = new HashMap<String, Object>();
 		for (int i = 0; i < 256; ++i) {
 			map.put("key" + i, "value" + i);
 		}
@@ -51,7 +51,7 @@ public class LZFCompressorTest {
 
 	@Test
 	public void testSerizlisedObjectLarge() throws IOException {
-		HashMap<String, Object> map = new HashMap<>();
+		HashMap<String, Object> map = new HashMap<String, Object>();
 		for (int i = 0; i < 1024 * 2; ++i) {
 			map.put("key" + i, "value" + i);
 		}
@@ -79,7 +79,7 @@ public class LZFCompressorTest {
 
 	@Test
 	public void testPerformanceSerizlisedObjectMedium() throws IOException {
-		HashMap<String, Object> map = new HashMap<>();
+		HashMap<String, Object> map = new HashMap<String, Object>();
 		for (int i = 0; i < 512; ++i) {
 			map.put("key" + i, "value" + i);
 		}
@@ -97,7 +97,7 @@ public class LZFCompressorTest {
 
 	@Test
 	public void testPerformanceSerizlisedObjectLarge() throws IOException {
-		HashMap<String, Object> map = new HashMap<>();
+		HashMap<String, Object> map = new HashMap<String, Object>();
 		for (int i = 0; i < 1024 * 2; ++i) {
 			map.put("key" + i, "value" + i);
 		}

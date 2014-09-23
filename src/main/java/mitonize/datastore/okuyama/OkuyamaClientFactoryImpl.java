@@ -191,7 +191,7 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 
 	/**
 	 * キーをBase64でエンコードする設定をする。(デフォルト:true)
-	 * @param キーをBase64でエンコードするならtrue
+	 * @param base64key キーをBase64でエンコードするならtrue
 	 */
 	public void setBase64key(boolean base64key) {
 		this.base64key = base64key;
@@ -208,8 +208,7 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	/**
 	 * 文字列を格納する際にJavaのシリアライズをするかを設定する。(デフォルト:false)
 	 * 互換モードが設定されている場合は強制的にシリアライズされる。
-	 * 
-	 * @return 文字列を格納する際にJavaのシリアライズをするならtrue
+	 * @param serializeString 文字列を格納する際にJavaのシリアライズをするならtrue
 	 */
 	public void setSerializeString(boolean serializeString) {
 		this.serializeString = serializeString;

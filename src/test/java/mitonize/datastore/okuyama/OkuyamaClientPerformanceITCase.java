@@ -5,7 +5,10 @@ import static org.junit.Assert.fail;
 import java.io.IOException;
 import java.net.UnknownHostException;
 import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Random;
 
+import mitonize.datastore.ElapseWatch;
 import mitonize.datastore.OperationFailedException;
 
 import org.junit.BeforeClass;
@@ -23,6 +26,12 @@ public class OkuyamaClientPerformanceITCase {
 	public static void setup() throws UnknownHostException {
 		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"/*, "127.0.0.1:8889"*/}, 6, compatibility, verbose);
 		factory.setCompressionMode(true);
+//		factory.setCompressionStrategy(new CompressionStrategy() {
+//			@Override
+//			public Compressor getSuitableCompressor(String key, int valueLength) {
+//				return Compressor.getCompressor(LZFCompressor.COMPRESSOR_ID);
+//			}
+//		});
 	}
 	
 	void log(String method, Object ... msg) {
@@ -35,52 +44,86 @@ public class OkuyamaClientPerformanceITCase {
 	}
 
 	class Load implements Runnable {
-		static final int LOOP_COUNT = 10000;
+		static final int MAX_PAYLOAD_SIZE = 100 * 1024;
+		
 		private String id;
-		public Load(String id) {
+		private int loopCount;
+		private int payloadSize;
+
+		public Load(String id, int loopCount, int payloadSize) {
 			this.id = id;
+			this.loopCount = loopCount;
+			this.payloadSize = payloadSize;
+		}
+
+		public byte[] makePayload(int size) {
+			if (size > MAX_PAYLOAD_SIZE) {
+				throw new IllegalArgumentException("Too large payload");
+			}
+			Random random = new Random();
+			byte[] payload = new byte[size];
+			random.nextBytes(payload);
+			Arrays.fill(payload, 0, payload.length / 2, (byte)1);
+			return payload;
 		}
 
 		@Override
 		public void run() {
-			final String METHOD_NAME = "test1_7_multithread";
-			log(METHOD_NAME, "start:" + Thread.currentThread().getName());
+			byte[] payload = makePayload(payloadSize);
+//			final String METHOD_NAME = "test1_7_multithread";
+//			log(METHOD_NAME, "payload =", payload.length, "start:" + Thread.currentThread().getName());
 			OkuyamaClient client = factory.createClient();
-			for (int i = 0; i < LOOP_COUNT; ++i) {
+			for (int i = 0; i < loopCount; ++i) {
 				String key = String.format("%s_%08d", id, i);
 				try {
-					String val = Integer.toString(i);
-					client.setObjectValue(key, val, null, 2);
-					String str = (String) client.getObjectValue(key);
-					if (str == null || !str.equals(val)) {
-						fail("value is not match");
-						break;
+					ElapseWatch watch = i == (loopCount / 2) ? new ElapseWatch(): null ;
+					double lapSet = 0, lapGet = 0;
+
+					if (watch != null)
+						watch.start();
+
+					client.setObjectValue(key, payload, null, 30);
+					if (watch != null) {
+						lapSet = watch.lap();
+					}
+					byte[] ret = (byte[]) client.getObjectValue(key);
+					if (watch != null) {
+						lapGet = watch.lap();
+						System.out.printf("%6.2f\t%6.2f%n", lapSet, lapGet);
+					}
+					if (ret == null || !Arrays.equals(payload, ret)) {
+						fail("value is not match " + key);
 					}
 					Thread.sleep(1);
 				} catch (IOException e) {
-					System.err.println("ERROR IOException:" + e.getMessage());
+					System.err.println(key + " ERROR IOException:" + e.getMessage());
 				} catch (OperationFailedException e) {
-					System.err.println("ERROR OperationFaildException:" + e.getMessage());
-				} catch (InterruptedException e) {
-					System.err.println("ERROR InterruptedException:" + e.getMessage());
+					System.err.println(key + " ERROR OperationFaildException:" + e.getMessage());
+				} catch (Exception e) {
+					System.err.println(key + " ERROR DataFormatException:" + e.getMessage());
+					e.printStackTrace();
 				}
 			}
-			log(METHOD_NAME, "done:" + Thread.currentThread().getName());
+//			log(METHOD_NAME, "done:" + Thread.currentThread().getName());
 		}
 	}
 
 	@Test
 	//@Ignore
 	public void test1_7_multithread() throws IOException, OperationFailedException, InterruptedException {
-		factory.setCompressionMode(false);
+		int threadCount = 6;
+		int payloadSize = 5000;
 		ArrayList<Thread> threads = new ArrayList<Thread>();
-		for (int i = 0; i < 6; ++i) {
-			Thread thread = new Thread(new Load("key" + i));
+		System.out.printf("%6s\t%6s %dbytes%n","set", "get", payloadSize);
+
+		Random random = new Random();
+		for (int i = 0; i < threadCount; ++i) {
+			Thread thread = new Thread(new Load("key" + i + "_" + random.nextInt(), 100, payloadSize));
 			threads.add(thread);
-			// 起動時にウエイトを入れないとOkuyamaから例外が発生する。
-			// NG:MasterNode - setKeyValue - Exception - okuyama.base.lang.BatchException: Key Node IO Error: detail info for log file
-			Thread.sleep(900);
-			thread.start();
+		}
+
+		for (int i = 0; i < threads.size(); ++i) {
+			threads.get(i).start();
 		}
 		for (int i = 0; i < threads.size(); ++i) {
 			threads.get(i).join();
