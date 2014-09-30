@@ -4,6 +4,9 @@ import java.nio.ByteBuffer;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import com.ning.compress.CompressionFormatException;
 import com.ning.compress.lzf.LZFDecoder;
 import com.ning.compress.lzf.LZFEncoder;
@@ -19,7 +22,9 @@ import com.ning.compress.lzf.LZFEncoder;
  */
 public class LZFCompressor extends Compressor {
 	public static final int COMPRESSOR_ID = 1;
-	
+
+	Logger logger = LoggerFactory.getLogger(LZFCompressor.class);
+
 	byte[] HEADER;
 
 	public LZFCompressor() {
@@ -40,6 +45,10 @@ public class LZFCompressor extends Compressor {
 		byte[] compressed = LZFEncoder.encode(serialized, offset, length);
 		ByteBuffer result = ByteBuffer.allocate(compressed.length + 3);
 		result.put(HEADER).put(compressed).flip();
+		if (logger.isTraceEnabled()) {
+			logger.trace("compress: {}/{}", result.limit() - result.position(), length);
+		}
+		
 		return result;
 	}
 

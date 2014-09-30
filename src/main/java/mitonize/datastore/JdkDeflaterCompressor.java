@@ -7,7 +7,12 @@ import java.util.zip.DataFormatException;
 import java.util.zip.Deflater;
 import java.util.zip.Inflater;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 public class JdkDeflaterCompressor extends Compressor {
+	Logger logger = LoggerFactory.getLogger(JdkDeflaterCompressor.class);
+	
 	public static final int COMPRESSOR_ID = 0;
 
 	private static final int MAGIC_BYTES_LENGTH = 3;
@@ -88,6 +93,9 @@ public class JdkDeflaterCompressor extends Compressor {
 				int size = deflater.deflate(z, compressed, remain);
 				compressed += size;
 			}
+			if (logger.isTraceEnabled()) {
+				logger.trace("compress: {}/{}", compressed, length);
+			}
 			return ByteBuffer.wrap(z, 0, compressed);
 		} finally {
 			if (deflater != null) {
@@ -113,7 +121,6 @@ public class JdkDeflaterCompressor extends Compressor {
 				int remain = z.length - extracted;
 				if (remain == 0) {
 					z = Arrays.copyOf(z, z.length + BLOCK_SIZE_COMPRESS);
-					System.err.println("reallocated:" + z.length);
 					remain = z.length - extracted;
 				}
 				int size = inflater.inflate(z, extracted, remain);
