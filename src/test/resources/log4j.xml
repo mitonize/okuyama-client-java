@@ -9,11 +9,30 @@
 		</layout>
 	</appender>
 
+	<appender name="stderr" class="org.apache.log4j.ConsoleAppender">
+		<param name="Target" value="System.err" />
+		<layout class="org.apache.log4j.PatternLayout">
+			<param name="ConversionPattern" value="            %t %c{1}: %m%n" />
+		</layout>
+	</appender>
+
 	<category name="mitonize.datastore.SocketManager" additivity="false" >
 		<priority value="warn" />
 		<appender-ref ref="stdout" />
 	</category>
-	<root>
+
+<!--
+ 	<category name="mitonize.datastore.LZFCompressor" additivity="false" >
+		<priority value="trace" />
+		<appender-ref ref="stderr" />
+	</category>
+	<category name="mitonize.datastore.JdkDeflaterCompressor" additivity="false" >
+		<priority value="trace" />
+		<appender-ref ref="stderr" />
+	</category>
+ -->
+
+ 	<root>
 		<priority value="debug" />
 		<appender-ref ref="stdout" />
 	</root>
