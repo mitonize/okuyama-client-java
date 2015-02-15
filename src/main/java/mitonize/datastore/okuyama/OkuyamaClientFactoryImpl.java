@@ -24,6 +24,11 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 		return okuyamaClient;
 	}
 
+	@Override
+	public void destroy() {
+		this.socketManager.shutdown();
+	}
+
 	/**
 	 * マスターノード、最小のソケットプールサイズを指定してファクトリクラスを生成する。
 	 * マスターノードの指定は、[ホスト名]:[ポート番号] の形式の文字列の配列である。
