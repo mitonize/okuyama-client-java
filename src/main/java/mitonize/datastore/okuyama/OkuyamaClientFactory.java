@@ -13,4 +13,9 @@ public interface OkuyamaClientFactory {
 	 * @throws IOException 
 	 */
 	public OkuyamaClient createClient();
+	
+	/**
+	 * 確保しているリソースを解放してファクトリクラスを破棄する。
+	 */
+	public void destroy();
 }

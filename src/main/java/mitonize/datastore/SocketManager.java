@@ -419,4 +419,8 @@ public class SocketManager {
 	public void setDelayToMarkOnlineInMillis(int delayToMarkOnlineInMillis) {
 		this.delayToMarkOnlineInMillis = delayToMarkOnlineInMillis;
 	}
+
+	public void shutdown() {
+		this.offlineManagementService.shutdown();
+	}
 }
