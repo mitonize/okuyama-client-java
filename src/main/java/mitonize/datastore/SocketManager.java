@@ -145,7 +145,7 @@ public class SocketManager {
 			String hostname = nodes[i].split(":")[0];
 			int port = Integer.parseInt(nodes[i].split(":")[1]); // May throws NumberFormatException
 			
-			if (!hostname.matches("[\\d\\w.]+")) {
+			if (!hostname.matches("[0-9a-zA-Z.-]+")) {
 				throw new IllegalArgumentException("hostname contains illegal character. " + hostname);
 			}
 			if (port < 0 || port > 65535) {

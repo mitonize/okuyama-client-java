@@ -26,7 +26,7 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
 public class OkuyamaClientImpl2 implements OkuyamaClient {
-	Logger logger = LoggerFactory.getLogger(OkuyamaClientImpl2.class);
+	private Logger logger = LoggerFactory.getLogger(OkuyamaClientImpl2.class);
 	
 	private static final char VALUE_SEPARATOR = ',';
 	private static final int BLOCK_SIZE = 8192;
@@ -46,7 +46,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64Key キーをBase64エンコードする。
 	 * @param serializeString 値に文字列を保管するときにシリアライズするなら true。 falseなら文字列をUTF-8でBase64エンコードする。
 	 */
-	OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString, CompressionStrategy compressionStrategy) {
+	protected OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString, CompressionStrategy compressionStrategy) {
 		this.cs = Charset.forName("UTF-8");
 		this.buffer = ByteBuffer.allocate(BLOCK_SIZE);
 		this.socketManager = socketManager;
@@ -463,7 +463,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _getMasterNodeVersion();
 		}
 	}
@@ -508,7 +508,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _initClient();
 		}
 	}
@@ -552,7 +552,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _setObjectValue(key, value, tags, age);
 		} finally {
 //			logger.debug("set:{}ms", System.currentTimeMillis() - st);
@@ -617,7 +617,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _getObjectValue(key);
 		} finally {
 //			logger.debug("get:{}ms", System.currentTimeMillis() - st);
@@ -682,7 +682,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _removeObjectValue(key);
 		}
 	}
@@ -747,7 +747,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _addObjectValue(key, value, tags, age);
 		}
 	}
@@ -794,7 +794,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 					failed = false;
 					return false;
 				} else {
-					logger.debug("addObjectValue failed. {}", msg);
+					getLogger().debug("addObjectValue failed. {}", msg);
 					throw new OperationFailedException(msg);
 				}
 			} else {
@@ -817,7 +817,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _getMultiObjectValues(keys);
 		}
 	}
@@ -887,7 +887,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _getTagKeys(tag, withDeletedKeys);
 		}
 	}
@@ -939,7 +939,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _getObjectValueVersionCheck(key);
 		}
 	}
@@ -1003,7 +1003,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _setObjectValueVersionCheck(key, value, version, tags, age);
 		}
 	}
@@ -1070,7 +1070,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} catch (IOException e) {
 			// 既に接続が切れていた、あるいは途中で接続が切れた場合は1回だけリトライする。
 			// 相手方あるいは途中のネットワーク機器で切断された可能性もあるため。
-			logger.debug("retry once cause:{}", e.getMessage());
+			getLogger().debug("retry once cause:{}", e.getMessage());
 			return _getPairsByTag(tag);
 		}
 	}
@@ -1130,5 +1130,13 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 
 	public void setCompressionStrategy(CompressionStrategy compressionStrategy) {
 		this.compressionStrategy = compressionStrategy;
+	}
+
+	protected Logger getLogger() {
+		return logger;
+	}
+
+	protected void setLogger(Logger logger) {
+		this.logger = logger;
 	}
 }
