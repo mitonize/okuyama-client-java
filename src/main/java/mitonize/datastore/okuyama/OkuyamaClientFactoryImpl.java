@@ -286,4 +286,12 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	public void setDelayToMarkOnlineInMillis(int delayToMarkOnlineInMillis) {
 		socketManager.setDelayToMarkOnlineInMillis(delayToMarkOnlineInMillis);
 	}
+
+	public SocketManager getSocketManager() {
+		return socketManager;
+	}
+
+	public void setSocketManager(SocketManager socketManager) {
+		this.socketManager = socketManager;
+	}
 }
