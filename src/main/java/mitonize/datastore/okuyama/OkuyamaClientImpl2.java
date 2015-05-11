@@ -197,6 +197,15 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	}
 
 	/**
+     * 終端が必要なプロトコル番号の場合に末尾にセパレータを付加する。
+     * @param buffer ByteBufferオブジェクト
+     * @throws IOException 
+     */
+    void terminate(OutputStream os) throws IOException {
+        os.write(VALUE_SEPARATOR);
+    }
+
+	/**
 	 * 作成したリクエストを Channel に送信する。
 	 * @param channel ソケットチャネル
 	 * @param request リクエストの ByteBufferオブジェクト
@@ -1032,6 +1041,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			}
 //			appendNumber(channel, 0);
 			appendString(os, version, false);
+            appendNumber(os, age);
+            terminate(os);
 			sendRequest(os);
 	
 			readResponse(is);

@@ -3,7 +3,7 @@
 	<modelVersion>4.0.0</modelVersion>
 	<groupId>mitonize</groupId>
 	<artifactId>okuyama-client-java</artifactId>
-	<version>1.1.2p2</version>
+	<version>1.1.2p3</version>
 	<url>https://github.com/mitonize/okuyama-client-java</url>
 	<description>Yet another client Java library connecting to Okuyama, a key-value storage middle ware.</description>
 	<name>Java client library for Okuyama KVS</name>
