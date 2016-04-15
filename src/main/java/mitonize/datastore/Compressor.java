@@ -25,11 +25,11 @@ public abstract class Compressor {
 	 * <li>独自仕様：圧縮されたバイト列はマジックコード 0xac 0xee で始めることとする。</li>
 	 * <li>独自仕様：3バイト目には格納時に使用されたCompressorの識別子を設定する。</li>
 	 * </ul>
-	 * @param data
-	 * @param offset
-	 * @param length
+	 * @param data データストアから取得したペイロードが格納されたバッファ
+	 * @param offset 参照するバッファのオフセット
+	 * @param length バッファのサイズ
 	 * @return 与えられたバイト列がCompressorによって圧縮されている場合は、展開に必要なCompressorを返す。
-	 * @throws IllegalStateException
+	 * @throws IllegalStateException 圧縮されたペイロードだが該当するCompressorが登録されていない。registerCompressor(Compressor)を初期化時に実行しておく必要がある。
 	 */
 	public static Compressor getAppliedCompressor(byte[] data, int offset, int length) throws IllegalStateException {
 		if (length >= 2 && data[offset] == (byte) 0xac && data[offset+1] == (byte) 0xee) {
@@ -61,7 +61,7 @@ public abstract class Compressor {
 		buf[1] = (byte) 0xee;
 		buf[2] = (byte) getCompressorId();
 	}
-	
+
 	abstract public int getCompressorId();
 	abstract public ByteBuffer compress(byte[] serialized);
 	abstract public ByteBuffer compress(byte[] serialized, int offset, int length);
