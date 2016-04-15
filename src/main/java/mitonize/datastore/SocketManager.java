@@ -36,7 +36,7 @@ public class SocketManager {
 		private boolean offline = false;
 		/** for canceling on being online */
 		ScheduledFuture<Object> offlineManagementFuture;
-		
+
 		/**
 		 * 指定したエンドポイントのオフライン状態を設定する。
 		 * @param endpoint エンドポイント
@@ -47,7 +47,7 @@ public class SocketManager {
 			if (offline) {
 				if (!this.offline) {
 					OfflineManagementTask task = new OfflineManagementTask(this);
-					this.offlineManagementFuture = 
+					this.offlineManagementFuture =
 							(ScheduledFuture<Object>) offlineManagementService.scheduleWithFixedDelay(task, 0, 5, TimeUnit.SECONDS);
 					this.offline = true;
 					logger.warn("Mark offline - {}:{}", this.address.getHostName(), this.port);
@@ -127,6 +127,11 @@ public class SocketManager {
 
 	private DumpFilterStreamFactory dumpFilterStreamFactory;
 
+	/**
+	 * ソケットの生存期間[ミリ秒]（デフォルトは5分）
+	 */
+	private long socketTimeToLiveInMilli = 5 * 60 * 1000;
+
 	public SocketManager(String[] masternodes, int maxPoolSize) throws UnknownHostException {
 		if (masternodes.length == 0) {
 			throw new IllegalStateException("No connection endpoint setting specified.");
@@ -144,13 +149,13 @@ public class SocketManager {
 		for (int i = 0; i < nodes.length; ++i) {
 			String hostname = nodes[i].split(":")[0];
 			int port = Integer.parseInt(nodes[i].split(":")[1]); // May throws NumberFormatException
-			
+
 			if (!hostname.matches("[0-9a-zA-Z.-]+")) {
 				throw new IllegalArgumentException("hostname contains illegal character. " + hostname);
 			}
 			if (port < 0 || port > 65535) {
 				throw new IllegalArgumentException("port number must in range 0 to 65535. " + port);
-			}			
+			}
 			endpoints[i] = new Endpoint(InetAddress.getByName(hostname), port);
 		}
 	}
@@ -168,13 +173,24 @@ public class SocketManager {
 	 * プールしているソケットを取り出して返却する。
 	 * 取り出した時にそのソケットが有効かをチェックして、無効なら新規にソケットを開く。
 	 * 新規のソケットは登録されているエンドポイントのうちラウンドロビンで選択され、接続に成功したものとなる。
-	 * 
+	 *
 	 * @return 有効な接続先のソケット。
 	 * @throws IOException 有効な接続先が1つもない場合。
 	 */
 	public SocketStreams aquire() throws IOException {
 		SocketStreams socket = queue.poll();
-		return (socket == null || !isAvailable(socket)) ? openSocket() : socket;
+
+		if(socket == null){
+			return openSocket();
+		}
+
+		// ソケットに問題がある場合、そのソケットは利用せず、次のソケットを利用する
+		if(!isAvailable(socket)){
+			// closeSocket(socket);
+			return aquire();
+		}
+
+		return socket;
 	}
 
 	/**
@@ -182,7 +198,7 @@ public class SocketManager {
 	 * 新規にオープンしたソケットのタイムスタンプを管理して、プールの上限数に達した最後のタイムスタンプよりも
 	 * 新しいソケットはキューに戻されない。タイムスタンプよりも古いソケットが無効だった場合はプール数が減るが、
 	 * 同時接続数が有効なプール数よりも増えた段階で新規に開かれ、タイムスタンプも更新される。
-	 * 
+	 *
 	 * @param socket プールから取り出したソケット
 	 */
 	public void recycle(SocketStreams socket) {
@@ -194,7 +210,7 @@ public class SocketManager {
 			closeSocket(socket);
 		}
 	}
-	
+
 	/**
 	 * オフラインとマークされたエンドポイントを定期的にチェックして復帰していればオフラインとしてマークする。
 	 */
@@ -255,7 +271,7 @@ public class SocketManager {
 		}
 		return endpoints[0];
 	}
-	
+
 	/**
 	 * 新しくソケットを開く。登録されているエンドポイントをラウンドロビンで順次選択し、接続が確立するまで繰り返す。
 	 * 最後に失敗した接続試行と今回取得したエンドポイントが同じであればそれ以上の試行は行わず、例外を投げる。
@@ -285,7 +301,7 @@ public class SocketManager {
 					is = dumpFilterStreamFactory.wrapInputStream(is);
 					os = dumpFilterStreamFactory.wrapOutputStream(os);
 				}
-				SocketStreams s = new SocketStreams(socket, os, is);
+				SocketStreams s = new SocketStreams(socket, os, is, socketTimeToLiveInMilli);
 				int c = activeSocketCount.incrementAndGet();
 				// プールする上限数に収まっていれば最近のタイムスタンプを保持しておく。
 				// プール上限数を超えた場合、このタイムスタンプより新しいソケットはrecycleでプールに戻されない。
@@ -314,7 +330,7 @@ public class SocketManager {
 		logger.error("No available endpoint to connect");
 		throw new IOException("No available endpoint to connect");
 	}
-	
+
 	void closeSocket(SocketStreams socket) {
 		try {
 			socket.getOutputStream().close();
@@ -333,6 +349,11 @@ public class SocketManager {
 	}
 
 	private boolean isAvailable(SocketStreams streams) {
+		if(streams.isExpired()){
+			closeSocket(streams);
+			return false;
+		}
+
 		Socket s = streams.getSocket();
 		if (s.isInputShutdown() || s.isOutputShutdown() || s.isClosed()) {
 			try {
@@ -418,6 +439,15 @@ public class SocketManager {
 	 */
 	public void setDelayToMarkOnlineInMillis(int delayToMarkOnlineInMillis) {
 		this.delayToMarkOnlineInMillis = delayToMarkOnlineInMillis;
+	}
+
+	/**
+	 * 新規に作成されてから設定値の期間経過したソケットは、そのソケットがプールから選択されるタイミングで削除され、利用されなくなります。
+	 *
+	 * @param socketTimeToLiveInMilli ソケットの生存期間[ミリ秒]（デフォルトは5分）
+	 */
+	public void setSocketTimeToLiveInMilli(long socketTimeToLiveInMilli) {
+		this.socketTimeToLiveInMilli = socketTimeToLiveInMilli;
 	}
 
 	public void shutdown() {

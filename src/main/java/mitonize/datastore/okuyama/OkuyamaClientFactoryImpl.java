@@ -33,14 +33,14 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	 * マスターノード、最小のソケットプールサイズを指定してファクトリクラスを生成する。
 	 * マスターノードの指定は、[ホスト名]:[ポート番号] の形式の文字列の配列である。
 	 * オリジナルのOkuyamaClientから読み出せる形式で書き出すようにする（互換モード）。
-	 * 
+	 *
 	 * <p>互換モードを設定すると下のような状態で稼働する。</p>
 	 * <ul>
 	 * <li>キーを必ずbase64エンコードする</li>
 	 * <li>文字列を格納する場合にもJavaのシリアライズを行ってからBase64エンコードする</li>
 	 * <li>圧縮しない（圧縮設定すると例外を発生させる）</li>
 	 * </ul>
-	 * 
+	 *
 	 * @param masternodes マスターノード接続先の配列
 	 * @param minPoolSize 最小のソケットプールサイズ
 	 * @throws UnknownHostException 指定したホスト名のIPアドレスが取得できない場合
@@ -60,7 +60,7 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	 * <li>文字列を格納する場合にもJavaのシリアライズを行ってからBase64エンコードする</li>
 	 * <li>圧縮しない（圧縮設定すると例外を発生させる）</li>
 	 * </ul>
-	 * 
+	 *
 	 * @param masternodes マスターノード接続先の配列
 	 * @param minPoolSize 最小のソケットプールサイズ
 	 * @param compatibilityMode オリジナルOkuyamaClient互換モード
@@ -81,7 +81,7 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	 * <li>文字列を格納する場合にもJavaのシリアライズを行ってからBase64エンコードする</li>
 	 * <li>圧縮しない（圧縮設定すると例外を発生させる）</li>
 	 * </ul>
-	 * 
+	 *
 	 * @param masternodes マスターノード接続先の配列
 	 * @param minPoolSize 最小のソケットプールサイズ
 	 * @param compatibilityMode オリジナルOkuyamaClient互換モード
@@ -92,13 +92,13 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	public OkuyamaClientFactoryImpl(String[] masternodes, int minPoolSize, boolean compatibilityMode, boolean dumpStream) throws UnknownHostException {
 		this(masternodes, minPoolSize, compatibilityMode, dumpStream, null);
 	}
-	
+
 	/**
 	 * マスターノード、最小のソケットプールサイズ、互換モード、ストリームのダンプモードを指定してファクトリクラスを生成する。
 	 * マスターノードの指定は、[ホスト名]:[ポート番号] の形式の文字列の配列である。
 	 * ストリームのダンプを指定すると標準出力にOkuyamaマスターノードへの入出力データをダンプする。
 	 * 圧縮戦略を指定すると、キーのパターンや値のサイズに応じで圧縮の有無、圧縮アルゴリズムの選択ができる。(参照 {@link CompressionStrategy})
-	 * 
+	 *
 	 * <p>
 	 * 互換モードを指定すると、オリジナルのOkuyamaClientからでも読み出し可能な形式で格納するように下の設定でクライアントを生成する。
 	 * </p>
@@ -107,7 +107,7 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	 * <li>文字列を格納する場合にもJavaのシリアライズを行ってからBase64エンコードする</li>
 	 * <li>圧縮しない（圧縮戦略を設定すると例外を発生させる）</li>
 	 * </ul>
-	 * 
+	 *
 	 * @param masternodes マスターノード接続先の配列
 	 * @param minPoolSize 最小のソケットプールサイズ
 	 * @param compatibilityMode オリジナルOkuyamaClient互換モード
@@ -137,7 +137,7 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 
 	/**
 	 * 互換モードを設定する。trueが設定された場合は圧縮は無効化される。
-	 * 
+	 *
 	 * @param compatibilityMode 互換モードに設定するなら true
 	 */
 	public void setCompatibilityMode(boolean compatibilityMode) {
@@ -293,5 +293,14 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 
 	public void setSocketManager(SocketManager socketManager) {
 		this.socketManager = socketManager;
+	}
+
+	/**
+	 * 新規に作成されてから設定値の期間経過したソケットは、そのソケットがプールから選択されるタイミングで削除され、利用されなくなります。
+	 *
+	 * @param socketTimeToLiveInMilli ソケットの生存期間[ミリ秒]（デフォルトは5分）
+	 */
+	public void setSocketTimeToLiveInMilli(long socketTimeToLiveInMilli) {
+		this.socketManager.setSocketTimeToLiveInMilli(socketTimeToLiveInMilli);
 	}
 }
