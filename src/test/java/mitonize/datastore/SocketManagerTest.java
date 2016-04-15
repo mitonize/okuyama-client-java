@@ -9,11 +9,11 @@ import java.net.Socket;
 import java.net.SocketAddress;
 import java.net.UnknownHostException;
 
-import junit.framework.Assert;
-import mitonize.datastore.SocketManager.Endpoint;
-
 import org.junit.Before;
 import org.junit.Test;
+
+import junit.framework.Assert;
+import mitonize.datastore.SocketManager.Endpoint;
 
 public class SocketManagerTest {
 	ServerSocket[] serverSockets;
@@ -111,7 +111,7 @@ public class SocketManagerTest {
 			manager.recycle(pool[i]);
 		}
 
-		// 310msec後、最初のソケットが作られてから560msec立つのでソケット[0][1]は破棄されており、取得できない
+		// 310msec後、最初のソケットが作られてから560msec経つのでソケット[0][1]は破棄されており、取得できない
 		Thread.sleep(310);
 		for (int i = 2; i < 5; i++) {
 			assertEquals(String.valueOf(i), pool[i], manager.aquire());
