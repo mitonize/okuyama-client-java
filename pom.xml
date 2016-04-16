@@ -19,7 +19,7 @@
 		</snapshotRepository>
 		<repository>
 			<id>ossrh</id>
-			<url>https://oss.sonatype.org/service/local/staging/deploy/maven2/</url>
+            <url>https://oss.sonatype.org/service/local/staging/deploy/maven2</url>
 		</repository>
 	</distributionManagement>
 	<build>
@@ -152,6 +152,16 @@
 			<version>1.0.1</version>
 		</dependency>
 	</dependencies>
+	<developers>
+		<developer>
+			<id>mitonize</id>
+			<name>Mitsutaka Watanabe</name>
+			<url>https://github.com/mitonize/</url>
+			<roles>
+				<role>developer</role>
+			</roles>
+		</developer>
+	</developers>
 	<licenses>
 		<license>
 			<name>The Apache Software License, Version 2.0</name>
