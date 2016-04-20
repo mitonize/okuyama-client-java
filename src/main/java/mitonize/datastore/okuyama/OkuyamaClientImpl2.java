@@ -12,6 +12,9 @@ import java.nio.ByteBuffer;
 import java.nio.charset.Charset;
 import java.util.ArrayList;
 
+import org.slf4j.Logger;
+import org.slf4j.LoggerFactory;
+
 import mitonize.datastore.Base64;
 import mitonize.datastore.CompressionStrategy;
 import mitonize.datastore.Compressor;
@@ -22,12 +25,9 @@ import mitonize.datastore.SocketManager;
 import mitonize.datastore.SocketStreams;
 import mitonize.datastore.VersionedValue;
 
-import org.slf4j.Logger;
-import org.slf4j.LoggerFactory;
-
 public class OkuyamaClientImpl2 implements OkuyamaClient {
 	private Logger logger = LoggerFactory.getLogger(OkuyamaClientImpl2.class);
-	
+
 	private static final char VALUE_SEPARATOR = ',';
 	private static final int BLOCK_SIZE = 8192;
 
@@ -38,13 +38,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	ByteBuffer buffer;
 
 	private CompressionStrategy compressionStrategy;
-	
+
 	/**
 	 * OkuyamaClient インスタンスを生成する。
-	 * 
+	 *
 	 * @param socketManager ソケットマネージャ
 	 * @param base64Key キーをBase64エンコードする。
 	 * @param serializeString 値に文字列を保管するときにシリアライズするなら true。 falseなら文字列をUTF-8でBase64エンコードする。
+	 * @param compressionStrategy 圧縮戦略
 	 */
 	protected OkuyamaClientImpl2(SocketManager socketManager, boolean base64Key, boolean serializeString, CompressionStrategy compressionStrategy) {
 		this.cs = Charset.forName("UTF-8");
@@ -62,11 +63,11 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	void validateKey(String key) {
 		for (int i=key.length() - 1; i >= 0; --i) {
 			if (Character.isISOControl(key.codePointAt(i))) {
-				throw new IllegalArgumentException();				
+				throw new IllegalArgumentException();
 			};
 		}
 	}
-	
+
 	/**
 	 * Nullを表すバイト列かどうかを確認する
 	 * @param b バイト列
@@ -81,12 +82,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		b.reset();
 		return false;
 	}
-	
+
 	/**
 	 * 指定されたプロトコル番号を設定したリクエスト用のバッファを生成する。
 	 * @param protocolNo プロトコル番号
 	 * @return ByteBufferインスタンス
-	 * @throws IOException 
+	 * @throws IOException
 	 */
 	void createBuffer(OutputStream os, int protocolNo) throws IOException {
 		os.write(Integer.toString(protocolNo).getBytes());
@@ -95,7 +96,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	/**
 	 * プロトコル書式に合わせてセパレータをバッファに追加する。
 	 * @param buffer ByteBufferオブジェクト
-	 * @throws IOException 
+	 * @throws IOException 通信エラーが発生した場合
 	 */
 	void appendSeparator(OutputStream os) throws IOException {
 		os.write(VALUE_SEPARATOR);
@@ -104,7 +105,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * プロトコル書式に合わせて数値フィールドをバッファに追加する。
 	 * @param buffer ByteBufferオブジェクト
 	 * @param num 数値
-	 * @throws IOException 
+	 * @throws IOException 通信エラーが発生した場合
 	 */
 	void appendNumber(OutputStream os, long num) throws IOException {
 		byte[] b = Long.toString(num).getBytes();
@@ -117,7 +118,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param buffer ByteBufferオブジェクト
 	 * @param str 文字列
 	 * @param base64 Base64エンコード有無
-	 * @throws IOException 
+	 * @throws IOException 通信エラーが発生した場合
 	 */
 	void appendString(OutputStream os, String str, boolean base64) throws IOException {
 		if (str == null) {
@@ -173,12 +174,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param buffer ByteBufferオブジェクト
 	 * @param strs 文字列リスト
 	 * @param base64 Base64エンコード有無
-	 * @throws IOException 
+	 * @throws IOException 通信エラーが発生した場合
 	 */
 	void appendStringList(OutputStream os, String[] strs, boolean base64) throws IOException {
 		if (strs == null) {
 			os.write(VALUE_SEPARATOR);
-			os.write("(B)".getBytes());			
+			os.write("(B)".getBytes());
 		} else {
 			os.write(VALUE_SEPARATOR);
 			for (int i=0; i < strs.length; ++i) {
@@ -199,7 +200,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	/**
      * 終端が必要なプロトコル番号の場合に末尾にセパレータを付加する。
      * @param buffer ByteBufferオブジェクト
-     * @throws IOException 
+	 * @throws IOException 通信エラーが発生した場合
      */
     void terminate(OutputStream os) throws IOException {
         os.write(VALUE_SEPARATOR);
@@ -239,7 +240,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param channel ソケットチャネル
 	 * @return 読み取った数値
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws OperationFailedException 
+	 * @throws OperationFailedException
 	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
 	long nextNumber(InputStream is) throws IOException, OperationFailedException {
@@ -313,7 +314,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			buffer.flip();
 		}
 	}
-	
+
 	/**
 	 * レスポンスのバッファから文字列リストを読み取る。バッファが足りなくなったら指定したチャネルから追加読み取りする。
 	 * @param buffer ByteBufferオブジェクト
@@ -321,7 +322,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param base64Key 読み取る文字列がBase64エンコードされている前提でデコードする。
 	 * @return 読み取った文字列の配列
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws OperationFailedException 
+	 * @throws OperationFailedException
 	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
 	String[] nextStringList(InputStream is, boolean base64Key) throws IOException, OperationFailedException {
@@ -337,7 +338,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 							list.add(cs.decode(Base64.decodeBuffer(strBuffer)).toString());
 						} else {
 							list.add(cs.decode(strBuffer).toString());
-						}			
+						}
 						strBuffer.clear();
 					} else if (ch == VALUE_SEPARATOR || ch == '\n') {
 						strBuffer.flip();
@@ -375,8 +376,8 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 	 * @param channel ソケットチャネル
 	 * @return 読み取ったバイト列
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws ClassNotFoundException  
-	 * @throws OperationFailedException 
+	 * @throws ClassNotFoundException
+	 * @throws OperationFailedException
 	 * @throws {@link OperationFailedException} 期待したフォーマットでない場合
 	 */
 	Object nextObject(InputStream is) throws IOException, ClassNotFoundException, OperationFailedException  {
@@ -417,17 +418,17 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			}
 		}
 	}
-	
+
 	/**
 	 * バイト列からJavaオブジェクトを復元する。バイト列がシリアライズされた列であれば
 	 * デシリアライズする。シリアライズされたバイト列でなければ文字列オブジェクトとして返す。
 	 * @param b バイト配列
-	 * @param length 
-	 * @param offset 
+	 * @param length
+	 * @param offset
 	 * @return デコードしたオブジェクト
 	 * @throws IOException 通信に何らかのエラーが発生した場合
-	 * @throws ClassNotFoundException  
-	 * @throws OperationFailedException 
+	 * @throws ClassNotFoundException
+	 * @throws OperationFailedException
 	 */
 	Object decodeObject(byte[] b, int offset, int length) throws IOException, ClassNotFoundException, OperationFailedException {
 		if (b.length == 0 || length == 0 || b.length < offset + length) {
@@ -459,12 +460,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		} else {
 			/** シリアル化されて以内バイト列は文字列として復元 **/
 			return cs.decode(ByteBuffer.wrap(b, offset, length)).toString();
-		}	
+		}
 	}
 
-	
-	
-	
+
+
+
 	@Override
 	public String getMasterNodeVersion() throws IOException, OperationFailedException {
 		try {
@@ -483,12 +484,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 			createBuffer(os, 999);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 999) {
@@ -527,12 +528,12 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 			createBuffer(os, 0);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 0) {
@@ -577,7 +578,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -586,14 +587,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			appendStringList(os, tags, true);
 			appendNumber(os, 0);
 			if (!serializeString && (value instanceof String)) {
-				appendString(os, (String) value, true);				
+				appendString(os, (String) value, true);
 			} else {
 				appendSerializedObjectBase64(os, value, key);
 			}
 			appendNumber(os, age);
 			appendSeparator(os);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 1) {
@@ -639,14 +640,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
 			createBuffer(os, 2);
 			appendString(os, key, base64Key);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 2) {
@@ -702,7 +703,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -710,7 +711,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			appendString(os, key, base64Key);
 			appendNumber(os, 0);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 5) {
@@ -771,7 +772,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -780,14 +781,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			appendStringList(os, tags, true);
 			appendNumber(os, 0);
 			if (!serializeString && (value instanceof String)) {
-				appendString(os, (String) value, true);				
+				appendString(os, (String) value, true);
 			} else {
 				appendSerializedObjectBase64(os, value, key);
 			}
 			appendNumber(os, age);
 			appendSeparator(os);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 6) {
@@ -815,7 +816,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				socketManager.destroy(socket);
 			}
 			socketManager.recycle(socket);
-		}		
+		}
 	}
 
 	@Override
@@ -840,7 +841,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -851,7 +852,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			sendRequest(os);
 
 			readResponse(is);
-			ArrayList<Object> list = new ArrayList<Object>(); 
+			ArrayList<Object> list = new ArrayList<Object>();
 			while (true) {
 				String str = nextString(is, false);
 				if (str.equals("END")) {
@@ -877,7 +878,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 						throw new OperationFailedException(msg);
 					}
 				} else {
-					String msg = nextString(is, false);				
+					String msg = nextString(is, false);
 					throw new OperationFailedException(msg);
 				}
 			}
@@ -906,7 +907,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -959,14 +960,14 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
 			createBuffer(os, 15);
 			appendString(os, key, base64Key);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 15) {
@@ -1026,7 +1027,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -1035,7 +1036,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			appendStringList(os, tags, true);
 			appendNumber(os, 0);
 			if (!serializeString && (value instanceof String)) {
-				appendString(os, (String) value, true);				
+				appendString(os, (String) value, true);
 			} else {
 				appendSerializedObjectBase64(os, value, key);
 			}
@@ -1044,7 +1045,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
             appendNumber(os, age);
             terminate(os);
 			sendRequest(os);
-	
+
 			readResponse(is);
 			long code = nextNumber(is);
 			if (code != 16) {
@@ -1063,7 +1064,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				failed = false;
 				throw new OperationFailedException(msg);
 			} else {
-				String msg = nextString(is, false);				
+				String msg = nextString(is, false);
 				throw new OperationFailedException(msg);
 			}
 		} finally {
@@ -1071,7 +1072,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 				socketManager.destroy(socket);
 			}
 			socketManager.recycle(socket);
-		}		
+		}
 	}
 
 	@Override
@@ -1091,7 +1092,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 		boolean failed = true;
 		try	{
 			socket = socketManager.aquire();
-			
+
 			OutputStream os = socket.getOutputStream();
 			InputStream is = socket.getInputStream();
 
@@ -1100,7 +1101,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 			sendRequest(os);
 
 			readResponse(is);
-			ArrayList<Pair> list = new ArrayList<Pair>(); 
+			ArrayList<Pair> list = new ArrayList<Pair>();
 			while (true) {
 				String str = nextString(is, false);
 				if (str.equals("END")) {
@@ -1127,7 +1128,7 @@ public class OkuyamaClientImpl2 implements OkuyamaClient {
 						throw new OperationFailedException(msg);
 					}
 				} else {
-					String msg = nextString(is, false);				
+					String msg = nextString(is, false);
 					throw new OperationFailedException(msg);
 				}
 			}

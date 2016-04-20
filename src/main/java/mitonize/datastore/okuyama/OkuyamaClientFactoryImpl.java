@@ -224,6 +224,8 @@ public class OkuyamaClientFactoryImpl implements OkuyamaClientFactory {
 	 * 保持するソケットの最大数を取得する。
 	 * 一時的に同時利用ソケット数がこの上限値を超える場合があるが、同時使用数が落ち着くと、
 	 * この上限数分のソケットは切断されずに保持される。
+	 *
+	 * @return 保持するソケットの最大数
 	 */
 	public int getMaxPoolSize() {
 		return socketManager.getMaxPoolSize();

@@ -8,23 +8,25 @@ import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Random;
 
-import mitonize.datastore.ElapseWatch;
-import mitonize.datastore.OperationFailedException;
-
 import org.junit.BeforeClass;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import mitonize.datastore.ElapseWatch;
+import mitonize.datastore.OperationFailedException;
+
 public class OkuyamaClientPerformanceITCase {
+	private static final String OKUYAMA_ENDPOINTS = "OKUYAMA_ENDPOINTS";
 	static Logger logger = LoggerFactory.getLogger(OkuyamaClientPerformanceITCase.class);
 	static OkuyamaClientFactoryImpl factory;
 	static boolean compatibility = false;
 	static boolean verbose = false;//logger.isTraceEnabled();
-	
+
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
-		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"/*, "127.0.0.1:8889"*/}, 6, compatibility, verbose);
+		String[] endpoints = System.getProperty(OKUYAMA_ENDPOINTS, "127.0.0.1:8888").split(",");
+		factory = new OkuyamaClientFactoryImpl(endpoints, 6, compatibility, verbose);
 		factory.setCompressionMode(true);
 //		factory.setCompressionStrategy(new CompressionStrategy() {
 //			@Override
@@ -33,7 +35,7 @@ public class OkuyamaClientPerformanceITCase {
 //			}
 //		});
 	}
-	
+
 	void log(String method, Object ... msg) {
 		StringBuilder sb = new StringBuilder();
 		for (Object m: msg) {
@@ -45,7 +47,7 @@ public class OkuyamaClientPerformanceITCase {
 
 	class Load implements Runnable {
 		static final int MAX_PAYLOAD_SIZE = 100 * 1024;
-		
+
 		private String id;
 		private int loopCount;
 		private int payloadSize;

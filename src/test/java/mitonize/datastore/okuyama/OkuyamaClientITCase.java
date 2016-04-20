@@ -12,29 +12,31 @@ import java.security.SecureRandom;
 import java.util.Arrays;
 import java.util.Date;
 
-import mitonize.datastore.KeyValueConsistencyException;
-import mitonize.datastore.OperationFailedException;
-import mitonize.datastore.Pair;
-import mitonize.datastore.VersionedValue;
-
 import org.junit.BeforeClass;
 import org.junit.Ignore;
 import org.junit.Test;
 import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 
+import mitonize.datastore.KeyValueConsistencyException;
+import mitonize.datastore.OperationFailedException;
+import mitonize.datastore.Pair;
+import mitonize.datastore.VersionedValue;
+
 public class OkuyamaClientITCase {
+	private static final String OKUYAMA_ENDPOINTS = "OKUYAMA_ENDPOINTS";
 	static Logger logger = LoggerFactory.getLogger(OkuyamaClientITCase.class);
 	static OkuyamaClientFactoryImpl factory;
 	static boolean compatibility = false;
 	static boolean verbose = false;//logger.isTraceEnabled();
-	
+
 	@BeforeClass
 	public static void setup() throws UnknownHostException {
-		factory = new OkuyamaClientFactoryImpl(new String[]{"127.0.0.1:8888"/*, "127.0.0.1:8889"*/}, 6, compatibility, verbose);
+		String[] endpoints = System.getProperty(OKUYAMA_ENDPOINTS, "127.0.0.1:8888").split(",");
+		factory = new OkuyamaClientFactoryImpl(endpoints, 6, compatibility, verbose);
 		factory.setCompressionMode(true);
 	}
-	
+
 	void log(String method, Object ... msg) {
 		StringBuilder sb = new StringBuilder();
 		for (Object m: msg) {
@@ -102,11 +104,11 @@ public class OkuyamaClientITCase {
 	@Test
 	@Ignore
 	public void test1_4_largedata_over() throws IOException, OperationFailedException {
-		boolean doCompress = factory.isCompressionMode();		
+		boolean doCompress = factory.isCompressionMode();
 		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
-	
+
 			long maxlength = client.initClient();
 			int size = (int) maxlength + 55006;
 
@@ -126,11 +128,11 @@ public class OkuyamaClientITCase {
 	@Test
 //	@Ignore
 	public void test1_4_largedata_muchover() throws IOException, OperationFailedException {
-		boolean doCompress = factory.isCompressionMode();		
+		boolean doCompress = factory.isCompressionMode();
 		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
-	
+
 			long maxlength = client.initClient();
 			int size = (int) maxlength + 55021;
 
@@ -152,11 +154,11 @@ public class OkuyamaClientITCase {
 	@Test
 //	@Ignore
 	public void test1_4_largedata_just() throws IOException, OperationFailedException {
-		boolean doCompress = factory.isCompressionMode();		
+		boolean doCompress = factory.isCompressionMode();
 		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
-	
+
 			long maxlength = client.initClient();
 			int size = (int) maxlength;
 
@@ -174,12 +176,12 @@ public class OkuyamaClientITCase {
 
 	@Test
 	public void test1_4_largedata64k() throws IOException, OperationFailedException {
-		boolean doCompress = factory.isCompressionMode();		
+		boolean doCompress = factory.isCompressionMode();
 		factory.setCompressionMode(false);
 		try {
 			OkuyamaClient client = factory.createClient();
-	
-			int size = (int) 65536;
+
+			int size = 65536;
 			byte[] verylargevalue = new byte[size];
 			Arrays.fill(verylargevalue, (byte)'a');
 			boolean ret = client.setObjectValue("HOGE2_0", verylargevalue, null, 0);
@@ -188,7 +190,7 @@ public class OkuyamaClientITCase {
 			factory.setCompressionMode(doCompress);
 		}
 	}
-	
+
 	@Test
 	public void test1_5_expire() throws IOException, OperationFailedException, InterruptedException {
 		OkuyamaClient client = factory.createClient();
@@ -217,7 +219,7 @@ public class OkuyamaClientITCase {
 		try {
 			client.setObjectValue("HOGE6", null, new String[]{"tag1","tag2"}, 0);
 			fail("Okuyama does not permit storing null value");
-		} catch (IllegalArgumentException e) {			
+		} catch (IllegalArgumentException e) {
 		}
 	}
 
@@ -252,7 +254,7 @@ public class OkuyamaClientITCase {
 			client.getObjectValue(new String(verylongkey));
 			fail("must throw an exception of 'Key Length Error'");
 		} catch (OperationFailedException e) {
-			// 
+			//
 		}
 	}
 
@@ -279,10 +281,10 @@ public class OkuyamaClientITCase {
 //	@Ignore
 	public void test6_0() throws IOException, OperationFailedException, InterruptedException {
 		OkuyamaClient client = factory.createClient();
-	
-		SecureRandom rand = new SecureRandom(); 
+
+		SecureRandom rand = new SecureRandom();
 		String key = "HOGE_" + Long.toString(rand.nextLong());
-	
+
 		boolean success;
 		success = client.addObjectValue(key, "タグ1", null, 1);
 		assertTrue(success);
@@ -296,14 +298,14 @@ public class OkuyamaClientITCase {
 //	@Ignore
 	public void test6_1() throws IOException, OperationFailedException, InterruptedException {
 		OkuyamaClient client = factory.createClient();
-	
-		SecureRandom rand = new SecureRandom(); 
+
+		SecureRandom rand = new SecureRandom();
 		String key = "HOGE_" + Long.toString(rand.nextLong());
-	
+
 		boolean success;
 		success = client.addObjectValue(key, "タグ1", null, 1);
 		assertTrue(success);
-		Thread.sleep(1100);
+		Thread.sleep(1200);
 		success = client.addObjectValue(key, "タグ1", new String[]{"tag1","tag2"}, 1);
 		assertTrue(success);
 
@@ -314,7 +316,7 @@ public class OkuyamaClientITCase {
 	public void test15_0() throws IOException, OperationFailedException {
 		final String METHOD_NAME = "test15_0";
 		OkuyamaClient client = factory.createClient();
-		
+
 //		client.setObjectValue("HOGE00", new Date(), null, 0);
 		VersionedValue v = client.getObjectValueVersionCheck("HOGE00");
 		client.setObjectValueVersionCheck("HOGE00", new Date(), v.getVersion(), null, 0);
@@ -362,20 +364,20 @@ public class OkuyamaClientITCase {
 		} catch(UnknownHostException e) {
 		}
 	}
-	
+
 	@Test
 	@Ignore
 	public void test23_multiple_hosts() throws IOException, OperationFailedException {
 		final String METHOD_NAME = "test23_multiple_hosts";
 		String[] masternodes = new String[]{"localhost:8888", "127.0.0.1:8889"};
-		
+
 		OkuyamaClientFactory f = new OkuyamaClientFactoryImpl(masternodes, 5);
 		OkuyamaClient client = f.createClient();
 
 		Pair[] pairs = client.getPairsByTag("tag1");
 		log(METHOD_NAME, Arrays.toString(pairs));
 	}
-	
+
 
 	@Test
 	public void test999_version() throws IOException, OperationFailedException {
@@ -383,7 +385,7 @@ public class OkuyamaClientITCase {
 		try {
 			OkuyamaClient client = factory.createClient();
 			String str = client.getMasterNodeVersion();
-			
+
 			log(METHOD_NAME, "Vervion: " + str);
 		} catch(UnknownHostException e) {
 		}

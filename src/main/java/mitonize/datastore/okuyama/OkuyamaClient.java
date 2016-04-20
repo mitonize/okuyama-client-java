@@ -16,25 +16,25 @@ public interface OkuyamaClient {
 	/**
 	 * MasterNodeのバージョンを返す.
 	 * "0.9.5"などの形式
-	 * 
+	 *
 	 * @return バージョン文字列を返す。"0.9.5"などの形式
-	 * @throws IOException 
-	 * @throws OperationFailedException 
+	 * @throws IOException 通信エラーが発生した場合
+	 * @throws OperationFailedException 操作が成功しなかった場合
 	 */
 	String getMasterNodeVersion() throws IOException, OperationFailedException;
 
 	/**
 	 * 保存可能な最大サイズをMasterNodeへ問い合わせる.
-	 * 
+	 *
 	 * @return 保存可能な最大サイズ
-	 * @throws IOException 
-	 * @throws OperationFailedException 
+	 * @throws IOException 通信エラーが発生した場合
+	 * @throws OperationFailedException 操作が成功しなかった場合
 	 */
 	long initClient() throws IOException, OperationFailedException;
 
 	/**
 	 * Okuyamaに値を保存する。キー及び値は内部的に Base64エンコードされる。
-	 * 
+	 *
 	 * @param key キー文字列。コントロール文字を含む場合は例外
 	 * @param value 値オブジェクト。nullも指定可。
 	 * @param tags タグ文字列の配列。未設定の場合はnullを指定。
@@ -50,7 +50,7 @@ public interface OkuyamaClient {
 	 * キーを指定してOkuyamaから値を取得する。
 	 * シリアライズされたオブジェクトがクラスが見つからないなどの原因でデシリアライズできなかった場合は
 	 * ClassNotFoundException をオブジェクトとして返す。
-	 * 
+	 *
 	 * @param key キー文字列。コントロール文字を含む場合は例外
 	 * @return 値オブジェクト。存在しない場合は null となる。デシリアライズできなかった場合は ClassNotFoundExceptionオブジェクト。
 	 * @throws IOException 通信時の例外
@@ -63,7 +63,7 @@ public interface OkuyamaClient {
 	 * キーを指定してOkuyamaから値を削除する。キーが存在した場合は削除前の値を返す。
 	 * シリアライズされたオブジェクトがクラスが見つからないなどの原因でデシリアライズできなかった場合は
 	 * ClassNotFoundException をオブジェクトとして返す。
-	 * 
+	 *
 	 * @param key キー文字列。コントロール文字を含む場合は例外
 	 * @return 削除前の値オブジェクト。存在しない場合は null となる。デシリアライズできなかった場合は ClassNotFoundExceptionオブジェクト。
 	 * @throws IOException 通信時の例外
@@ -75,7 +75,7 @@ public interface OkuyamaClient {
 	/**
 	 * 新たにOkuyamaに値を保存する。既に存在する場合は失敗する。
 	 * キー及び値は内部的に Base64エンコードされる。
-	 * 
+	 *
 	 * @param key キー文字列。コントロール文字を含む場合は例外
 	 * @param value 値オブジェクト。nullも指定可。
 	 * @param tags タグ文字列の配列。未設定の場合はnullを指定。
@@ -89,7 +89,7 @@ public interface OkuyamaClient {
 
 	/**
 	 * 指定されたタグが含まれるキー群を取得する。
-	 * 
+	 *
 	 * @param tag タグ
 	 * @param withDeletedKeys 削除済みキーも返す場合はtrue
 	 * @return キーの配列
@@ -101,7 +101,7 @@ public interface OkuyamaClient {
 	 * キーを指定してOkuyamaから値を取得する。
 	 * シリアライズされたオブジェクトがクラスが見つからないなどの原因でデシリアライズできなかった場合は
 	 * ClassNotFoundException をオブジェクトとして返す。
-	 * 
+	 *
 	 * @param keys キー文字列(可変引数)。コントロール文字を含む場合は例外
 	 * @return 値オブジェクトの配列。存在しない場合は null となる。デシリアライズできなかった場合は ClassNotFoundExceptionオブジェクト。
 	 * @throws IOException 通信時の例外
@@ -114,10 +114,10 @@ public interface OkuyamaClient {
 	 * タグを指定してOkuyamaから値を取得する。
 	 * シリアライズされたオブジェクトがクラスが見つからないなどの原因でデシリアライズできなかった場合は
 	 * ClassNotFoundException を値として返す。
-	 * 
+	 *
 	 * @param tag タグ文字列の配列。未設定の場合はnullを指定。
 	 * @return 値オブジェクト。nullも指定可。
-	 * @throws IOException 
+	 * @throws IOException 通信エラーが発生した場合
 	 * @throws OperationFailedException 操作が成功しなかった場合
 	 * @throws IllegalArgumentException キー文字列にコントロール文字を含む場合
 	 */
@@ -127,7 +127,7 @@ public interface OkuyamaClient {
 	 * キーを指定してOkuyamaから値とバージョン情報を取得する。
 	 * シリアライズされたオブジェクトがクラスが見つからないなどの原因でデシリアライズできなかった場合は
 	 * ClassNotFoundException をオブジェクトとして返す。
-	 * 
+	 *
 	 * @param key キー文字列。コントロール文字を含む場合は例外
 	 * @return バージョン情報と値オブジェクトのペア。キーが存在しない場合は null となる。デシリアライズできなかった場合は値として ClassNotFoundExceptionオブジェクトを設定。
 	 * @throws IOException 通信時の例外
@@ -138,7 +138,7 @@ public interface OkuyamaClient {
 
 	/**
 	 * Okuyamaに値を保存する。キー及び値は内部的に Base64エンコードされる。
-	 * 
+	 *
 	 * @param key キー文字列。コントロール文字を含む場合は例外
 	 * @param value 値オブジェクト。nullも指定可。
 	 * @param version バージョン文字列。getObjectValueVersionCheck で取得したものを指定する。
@@ -152,5 +152,5 @@ public interface OkuyamaClient {
 	 */
 	boolean setObjectValueVersionCheck(String key, Object value, String version,
 			String[] tags, long age) throws IOException, OperationFailedException, KeyValueConsistencyException;
-	
+
 }
