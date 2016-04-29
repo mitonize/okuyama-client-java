@@ -35,7 +35,7 @@ When you use client instance, call factory.createClient(). This instance is supp
 ```java
 OkuyamaClient client = factory.createClient();
 ```
-## Compatibility 
+## Compatibility
 ###
 互換モードを指定すると、オリジナルのOkuyamaClientからでも読み出し可能な形式で格納するように下の設定でクライアントを生成する。
 
@@ -71,4 +71,32 @@ public class YourCompressionStrategy implements CompressionStrategy {
 		return compressorDefault;
 	}
 }
+```
+
+# Integration testing
+We need okuyama server for integration testing. For your convinience, I prepare docker images and docker-compose.yml. It is destributed on [mitonize/docker-okuyama] (https://github.com/mitonize/docker-okuyama).
+
+## Prerequisites
+* docker
+* docker-machine
+* docker-compose
+
+## Procedure
+### start docker machine
+On terminal, run commands below.
+```bash
+$ doker-machine start <your_machine_name>
+$ eval $(docker-machine env <your_machine_name>)
+```
+
+### start okuyama in docker container
+```bash
+$ git clone https://github.com/mitonize/docker-okuyama.git
+$ cd docker-okuyama
+$ docker-compose up
+```
+### run integration tests
+On another terminal, do maven integration-test with Okuyama endpoints settings as jvm system properties with named "OKUYAMA_ENDPOINTS".
+```
+mvn integration-test -DOKUYAMA_ENDPOINTS=$(docker-machine ip):8888
 ```
